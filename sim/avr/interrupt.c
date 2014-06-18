@@ -26,6 +26,7 @@
 uint16_t timsk0;
 uint16_t timsk1;
 uint16_t timsk2;
+uint16_t ocr0a;
 uint16_t ocr1a;
 uint16_t ocr2a;
 uint16_t tcnt0;
@@ -38,6 +39,11 @@ uint16_t tccr1a;
 uint16_t tccr2a;
 uint16_t pcmsk0;
 uint16_t pcicr;
+uint16_t ucsr0a;
+uint16_t ucsr0b;
+uint16_t udr0;
+uint8_t ubrr0h;
+uint8_t ubrr0l;
 
 void sei() {};
 void cli() {};

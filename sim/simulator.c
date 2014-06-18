@@ -55,6 +55,9 @@ FILE *block_out_file;
 FILE *step_out_file;
 
 // dummy port variables
+struct sim_vars sim;
+
+/*
 uint8_t stepping_ddr;
 uint8_t stepping_port;
 uint8_t spindle_ddr;
@@ -67,30 +70,31 @@ uint8_t pinout_port;
 uint8_t pinout_int_reg;
 uint8_t coolant_flood_ddr;
 uint8_t coolant_flood_port;
-
-extern block_t block_buffer[BLOCK_BUFFER_SIZE];  // A ring buffer for motion instructions
+*/
+extern plan_block_t block_buffer[BLOCK_BUFFER_SIZE];  // A ring buffer for motion instructions
 extern uint8_t block_buffer_head;       // Index of the next block to be pushed
 extern uint8_t block_buffer_tail;       // Index of the block to process now
 
 
 // Stub of the timer interrupt function from stepper.c
 void interrupt_TIMER2_COMPA_vect();
+void interrupt_TIMER1_COMPA_vect();
 
 // Call the stepper interrupt until one block is finished
 void sim_stepper() {
-  //printf("sim_stepper()\n");
-  block_t *current_block= plan_get_current_block();
+  printf("sim_stepper()\n");
+  plan_block_t *current_block= plan_get_current_block();
 
   // If the block buffer is empty, call the stepper interrupt one last time
   // to let it handle sys.cycle_start etc.
   if(current_block==NULL) {
-	  interrupt_TIMER2_COMPA_vect();
+	  interrupt_TIMER1_COMPA_vect();
 	  return;
   }
 
   while(current_block==plan_get_current_block()) {
     sim_time+= get_step_time();
-    interrupt_TIMER2_COMPA_vect();
+    interrupt_TIMER1_COMPA_vect();
 
     // Check to see if we should print some info
     if(step_time>0.0) {
@@ -123,11 +127,11 @@ uint8_t prev_block_index(uint8_t block_index)
   return(block_index);
 }
 
-block_t *get_block_buffer();
+plan_block_t *get_block_buffer();
 uint8_t get_block_buffer_head();
 uint8_t get_block_buffer_tail();
 
-block_t *plan_get_recent_block() {
+plan_block_t *plan_get_recent_block() {
   if (get_block_buffer_head() == get_block_buffer_tail()) { return(NULL); }
   return(get_block_buffer()+prev_block_index(get_block_buffer_head()));
 }
@@ -136,8 +140,8 @@ block_t *plan_get_recent_block() {
 // Print information about the most recently inserted block
 // but only once!
 void printBlock() {
-  block_t *b;
-  static block_t *last_block;
+  plan_block_t *b;
+  static plan_block_t *last_block;
 
   //printf("printBlock()\n");
 
@@ -145,16 +149,17 @@ void printBlock() {
   if(b!=last_block && b!=NULL) {
 	//fprintf(block_out_file,"%s\n", line);
     //fprintf(block_out_file,"  block: ");
-    if(b->direction_bits & (1<<X_DIRECTION_BIT)) block_position[0]-= b->steps_x;
-    else block_position[0]+= b->steps_x;
+	 //todo indixize
+    if(b->direction_bits & (1<<X_DIRECTION_BIT)) block_position[0]-= b->steps[0];
+    else block_position[0]+= b->steps[0];
     fprintf(block_out_file,"%d, ", block_position[0]);
 
-    if(b->direction_bits & (1<<Y_DIRECTION_BIT)) block_position[1]-= b->steps_y;
-    else block_position[1]+= b->steps_y;
+    if(b->direction_bits & (1<<Y_DIRECTION_BIT)) block_position[1]-= b->steps[1];
+    else block_position[1]+= b->steps[1];
     fprintf(block_out_file,"%d, ", block_position[1]);
 
-    if(b->direction_bits & (1<<Z_DIRECTION_BIT)) block_position[2]-= b->steps_z;
-    else block_position[2]+= b->steps_z;
+    if(b->direction_bits & (1<<Z_DIRECTION_BIT)) block_position[2]-= b->steps[2];
+    else block_position[2]+= b->steps[2];
     fprintf(block_out_file,"%d, ", block_position[2]);
 
     fprintf(block_out_file,"%f", b->entry_speed_sqr);
@@ -175,10 +180,22 @@ void handle_buffer() {
   // runtime_second_call will be incremented above 2
   //printf("handle_buffer()\n");
   if(plan_check_full_buffer() || runtime_second_call>2) {
+	 
     sim_stepper(step_out_file);
   } else {
     runtime_second_call++;
   }
+  if (TIMSK1 & (1<<OCIE1A))
+	 interrupt_TIMER1_COMPA_vect();
+ #ifdef STEP_PULSE_DELAY
+  interrupt_TIMER0_COMPA_vect();
+#endif
+  if (TCCR0B & (1<<CS01))
+	 interrupt_TIMER0_OVF_vect();
+
+  //TODO: monitor pos, set limit bits, call interrupt, including homing.
+  //can ignore pinout int vect - hw start/hold not supported
+
 }
 
 double get_step_time() {

@@ -31,8 +31,8 @@ void orig_protocol_execute_runtime(void);
 // and to control simulation of buffered blocks
 void protocol_execute_runtime(void) {
   orig_protocol_execute_runtime();
-  //printf("printBlock():\n");
+  printf("printBlock():\n");
   printBlock();
-  //printf("handle_buffer():\n");
+  printf("handle_buffer():\n");
   handle_buffer();
 }

@@ -15,10 +15,10 @@
 #  You should have received a copy of the GNU General Public License
 #  along with Grbl.  If not, see <http://www.gnu.org/licenses/>.
 
-OBJECTS    = main.o simulator.o runtime.o ../protocol.o ../planner.o ../settings.o ../print.o ../nuts_bolts.o eeprom.o serial.o avr/pgmspace.o avr/interrupt.o util/delay.o util/floatunsisf.o ../stepper.o ../gcode.o ../spindle_control.o ../motion_control.o ../limits.o ../report.o ../coolant_control.o
+OBJECTS    = main.o simulator.o runtime.o ../protocol.o ../planner.o ../settings.o ../print.o ../nuts_bolts.o eeprom.o serial.o avr/pgmspace.o avr/interrupt.o util/delay.o util/floatunsisf.o ../stepper.o ../gcode.o ../spindle_control.o ../motion_control.o ../limits.o ../report.o ../coolant_control.o ../probe.o ../system.o kbhit.o
 CLOCK      = 16000000
 EXE_NAME   = grbl_sim.exe
-COMPILE    = $(CC) -Wall -Os -DF_CPU=$(CLOCK) -include config.h -I.
+COMPILE    = $(CC) -Wall -g -DF_CPU=$(CLOCK) -include config.h -I.
 
 # symbolic targets:
 all:	main

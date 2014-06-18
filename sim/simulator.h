@@ -25,6 +25,7 @@
 
 #include <stdio.h>
 #include "../nuts_bolts.h"
+#include "../system.h"
 
 // Output file handles
 extern FILE *block_out_file;

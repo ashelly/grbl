@@ -38,13 +38,19 @@ extern uint16_t tccr2a;
 extern uint16_t tccr2b;
 extern uint16_t tccr1b;
 extern uint16_t tccr1a;
+extern uint16_t ocr0a;
 extern uint16_t ocr1a;
 extern uint16_t ocr2a;
 extern uint16_t pcmsk0;
 extern uint16_t pcicr;
+extern uint16_t ucsr0a;
+extern uint16_t ucsr0b;
+extern uint16_t udr0;
+extern uint8_t ubrr0h;
+extern uint8_t ubrr0l;
 
 // macros to turn avr interrupts into regular functions
-#define TIMER1_COMPA_vect
+//#define TIMER1_COMPA_vect
 #define ISR(a) void interrupt_ ## a ()
 
 // enable interrupts does nothing in the simulation environment
@@ -55,8 +61,11 @@ void cli();
 #define TIMSK0 timsk0
 #define TIMSK1 timsk1
 #define TIMSK2 timsk2
+#define OCR0A ocr0a
 #define OCR1A ocr1a
 #define OCR2A ocr2a
+#define OCIE0A 0
+#define OCIE0B 0
 #define OCIE1A 0
 #define OCIE2A 0
 #define TCNT0 tcnt0
@@ -67,17 +76,38 @@ void cli();
 #define TCCR1B tccr1b
 #define TCCR2A tccr2a
 #define TCCR2B tccr2b
-#define CS21 0
-#define CS10 0
+#define CS01 1
+#define CS12 12
+#define CS11 11
+#define CS10 10
+#define CS21 21
 #define WGM13 0
 #define WGM12 0
 #define WGM11 0
 #define WGM10 0
 #define WGM21 0
 #define COM1A0 0
+#define COM1A1 1
 #define COM1B0 0
+#define COM1B1 1
 #define TOIE0 0
 #define TOIE2 0
 #define PCICR pcicr
+#define PCIE0 0
+#define PCIE1 1
+//serial channel
+#define UCSR0A ucsr0a
+#define UCSR0B ucsr0b
+#define UDR0   udr0
+#define UDRIE0 0
+#define RXCIE0 1
+#define RXEN0  2
+#define TXEN0  3
+#define U2X0   4
+#define UBRR0H ubrr0h
+#define UBRR0L ubrr0l
+
+
+
 
 #endif

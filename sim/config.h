@@ -23,8 +23,11 @@
 #ifndef config_h
 #include "../config.h"
 #include <inttypes.h>
+#undef CPU_MAP_ATMEGA328P
+#undef CPU_MAP_ATMEGA2560
+#define CPU_MAP_SIMULATOR
 
-
+#if 0
 // dummy register variables implemented in simulator.c
 extern uint8_t stepping_ddr;
 extern uint8_t stepping_port;
@@ -113,5 +116,5 @@ extern uint8_t coolant_flood_port;
 #undef COOLANT_FLOOD_BIT
 #define COOLANT_FLOOD_BIT 0
 
-
+#endif
 #endif

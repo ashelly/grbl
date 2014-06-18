@@ -26,7 +26,39 @@
 #include "simulator.h"
 #include <stdio.h>
 
+#define serial_read orig_serial_read
+#define serial_write orig_serial_write
+#include "../serial.c"
+#include "kbhit.h"
+#undef serial_read
+#undef serial_write
+
+#define dprintf 
+
+void serial_bg_loop(){
+  //  printf("UCSR0B is %x\n",UCSR0B);
+  while (UCSR0B & (1<<UDRIE0)){
+	 interrupt_SERIAL_UDRE();
+	 printf("%c",UDR0);
+  }
+}
+
 void serial_write(uint8_t data) {
+
+  /*
+   uint8_t reset_flag = sys.execute & EXEC_RESET;
+  //use reset force break if buffer fills, since we don't really have background processs emptying it
+  sys.execute &= EXEC_RESET; 
+  */
+
+  dprintf("\n1: %x %x\n",tx_buffer_head+1,tx_buffer_tail);
+  serial_bg_loop();
+  dprintf("\n2: %x %x\n",tx_buffer_head+1,tx_buffer_tail);
+  orig_serial_write(data);
+  dprintf("\n3: %x %x\n",tx_buffer_head+1,tx_buffer_tail);
+  serial_bg_loop();
+  dprintf("\n4: %x %x\n",tx_buffer_head+1,tx_buffer_tail);
+
   printBlock();
   if(print_comment && data!='\n' && data!='\r') {
 	  fprintf(block_out_file, "# ");
@@ -43,11 +75,13 @@ void serial_write(uint8_t data) {
 
 
 uint8_t serial_read() {
-  int c;
-  if((c = fgetc(stdin)) != EOF) {
-	serial_write(c);
-    return c;
+  //int c;
+  //  if((c = fgetc(stdin)) != EOF) {
+  if (kbhit()) {
+	 UDR0 = getchar();
+	 interrupt_SERIAL_RX();
   }
     
-  return SERIAL_NO_DATA;
+  return orig_serial_read(); // SERIAL_NO_DATA;
 }
+

@@ -33,6 +33,10 @@
 #include "../coolant_control.h"
 #include "simulator.h"
 
+#define main orig_main
+#include "../main.c"
+#undef main
+
 
 int main(int argc, char *argv[]) {
   // Get the minimum time step for printing stepper values.
@@ -41,10 +45,15 @@ int main(int argc, char *argv[]) {
   if(argc>1) {
 	  argv++;
 	  step_time= atof(*argv);
+	  argc--;
   }
-
-  // Setup output file handles. Block info goes to stdout. Stepper values go to stderr.
-  block_out_file= stdout;
+  if (argc>1){
+	 block_out_file = fopen(*argv,"w");
+  }
+  else {
+	 // Setup output file handles. Block info goes to stdout. Stepper values go to stderr.
+	 block_out_file= stdout;
+  }
   step_out_file= stderr;
   // Make sure the output streams are flushed immediately.
   // This is important when using the simulator inside another application in parallel
@@ -53,6 +62,10 @@ int main(int argc, char *argv[]) {
   // does not know line buffered streams. So for now we stick to flushing every character.
   //setvbuf(stdout, NULL, _IONBF, 1);
   //setvbuf(stderr, NULL, _IONBF, 1);
+
+  orig_main();
+
+ /*
   
   st_init(); // Setup stepper pins and interrupt timers
   memset(&sys, 0, sizeof(sys));  // Clear all system variables
@@ -80,6 +93,7 @@ int main(int argc, char *argv[]) {
   // flush the block buffer and print stepper info on any pending blocks
   plan_synchronize();
 
+  */
   // Graceful exit
   fclose(block_out_file);
   fclose(step_out_file);
