@@ -30,9 +30,11 @@ void orig_protocol_execute_runtime(void);
 // replacement for original execute_runtime as a hook to print blocks as they are generated
 // and to control simulation of buffered blocks
 void protocol_execute_runtime(void) {
+  printf("simulate_hardware()");
+  simulate_hardware();
   orig_protocol_execute_runtime();
   printf("printBlock():\n");
   printBlock();
-  printf("handle_buffer():\n");
-  handle_buffer();
+  //printf("handle_buffer():\n");
+  //handle_buffer();
 }

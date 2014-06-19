@@ -58,4 +58,6 @@ void printBlock();
 // The reconstruction is done to truely decouple the simulator from the actual grbl code
 double get_step_time();
 
+void simulate_hardware();
+
 #endif

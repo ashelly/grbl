@@ -44,30 +44,21 @@ void serial_bg_loop(){
 }
 
 void serial_write(uint8_t data) {
+  serial_read();
 
-  /*
-   uint8_t reset_flag = sys.execute & EXEC_RESET;
-  //use reset force break if buffer fills, since we don't really have background processs emptying it
-  sys.execute &= EXEC_RESET; 
-  */
-
-  dprintf("\n1: %x %x\n",tx_buffer_head+1,tx_buffer_tail);
   serial_bg_loop();
-  dprintf("\n2: %x %x\n",tx_buffer_head+1,tx_buffer_tail);
   orig_serial_write(data);
-  dprintf("\n3: %x %x\n",tx_buffer_head+1,tx_buffer_tail);
   serial_bg_loop();
-  dprintf("\n4: %x %x\n",tx_buffer_head+1,tx_buffer_tail);
 
-  printBlock();
-  if(print_comment && data!='\n' && data!='\r') {
-	  fprintf(block_out_file, "# ");
-	  print_comment= 0;
-  }
-  if(data=='\n' || data=='\r')
-	  print_comment= 1;
+  /* printBlock(); */
+  /* if(print_comment && data!='\n' && data!='\r') { */
+  /* 	  fprintf(block_out_file, "# "); */
+  /* 	  print_comment= 0; */
+  /* } */
+  /* if(data=='\n' || data=='\r') */
+  /* 	  print_comment= 1; */
 
-  fprintf(block_out_file, "%c", data);
+  /* fprintf(block_out_file, "%c", data); */
 
   // Indicate the end of processing a command. See simulator.c for details
   runtime_second_call= 0;
@@ -77,11 +68,16 @@ void serial_write(uint8_t data) {
 uint8_t serial_read() {
   //int c;
   //  if((c = fgetc(stdin)) != EOF) {
+  simulate_hardware();
+  enable_kbhit(1);
   if (kbhit()) {
 	 UDR0 = getchar();
+	 printf("%c",UDR0);
 	 interrupt_SERIAL_RX();
   }
-    
+
+  enable_kbhit(0);
   return orig_serial_read(); // SERIAL_NO_DATA;
+
 }
 

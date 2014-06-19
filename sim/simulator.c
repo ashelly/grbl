@@ -28,6 +28,7 @@
 #include "../planner.h"
 #include "../nuts_bolts.h"
 #include "simulator.h"
+#include "kbhit.h"
 
 // This variable is needed to determine if execute_runtime() is called in a loop
 // waiting for the buffer to empty, as in plan_synchronize()
@@ -79,6 +80,33 @@ extern uint8_t block_buffer_tail;       // Index of the block to process now
 // Stub of the timer interrupt function from stepper.c
 void interrupt_TIMER2_COMPA_vect();
 void interrupt_TIMER1_COMPA_vect();
+
+
+void simulate_hardware(){
+  if (TIMSK1 & (1<<OCIE1A)) {
+	 interrupt_TIMER1_COMPA_vect();
+  }
+ #ifdef STEP_PULSE_DELAY
+  interrupt_TIMER0_COMPA_vect();
+#endif
+  if (TCCR0B & (1<<CS01)) {
+	 interrupt_TIMER0_OVF_vect();
+  }
+
+  /* if (kbhit()) { */
+  /* 	 UDR0 = getchar(); */
+  /* 	 interrupt_SERIAL_RX(); */
+  /* } */
+  /* //void serial_bg_loop(){ */
+  /* //  printf("UCSR0B is %x\n",UCSR0B); */
+  /* while (UCSR0B & (1<<UDRIE0)){ */
+  /* 	 interrupt_SERIAL_UDRE(); */
+  /* 	 printf("%c",UDR0); */
+  /* } */
+  /* //} */
+
+
+}
 
 // Call the stepper interrupt until one block is finished
 void sim_stepper() {
@@ -185,14 +213,6 @@ void handle_buffer() {
   } else {
     runtime_second_call++;
   }
-  if (TIMSK1 & (1<<OCIE1A))
-	 interrupt_TIMER1_COMPA_vect();
- #ifdef STEP_PULSE_DELAY
-  interrupt_TIMER0_COMPA_vect();
-#endif
-  if (TCCR0B & (1<<CS01))
-	 interrupt_TIMER0_OVF_vect();
-
   //TODO: monitor pos, set limit bits, call interrupt, including homing.
   //can ignore pinout int vect - hw start/hold not supported
 
