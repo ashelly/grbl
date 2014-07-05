@@ -22,6 +22,7 @@
 #include "system.h"
 #include "spindle_control.h"
 #include "protocol.h"
+#include "gcode.h"
 
 
 void spindle_init()
@@ -56,7 +57,10 @@ void spindle_stop()
 
 void spindle_run(uint8_t direction, float rpm) 
 {
+  if (sys.state == STATE_CHECK_MODE) { return; }
+  
   // Empty planner buffer to ensure spindle is set when programmed.
+  protocol_auto_cycle_start();  //temp fix for M3 lockup
   protocol_buffer_synchronize(); 
 
   // Halt or set spindle direction and rpm. 
