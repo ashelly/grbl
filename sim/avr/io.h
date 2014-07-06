@@ -167,6 +167,7 @@ volatile extern io_sim_t io;
 #define WGM11 1
 #define WGM10 0
 #define WGM21 1
+#define WGM20 0
 
 #define COM1A1 7
 #define COM1A0 6
@@ -175,6 +176,10 @@ volatile extern io_sim_t io;
 #define COM1C1 3
 #define COM1C0 2
 
+#define COM2A1 7
+#define COM2A0 6
+#define COM2B1 5
+#define COM2B0 4
 
 #define PCICR io.pcicr
 #define PCIE0 0
