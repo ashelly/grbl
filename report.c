@@ -396,7 +396,9 @@ void report_realtime_status()
     ln = pb->line_number;
   } 
 #else
-  ln = sys.last_line_number;
+  if (sys.state==STATE_CYCLE) {
+    ln = sys.last_line_number;
+  }
 #endif
 #endif
   float print_position[N_AXIS];
@@ -413,7 +415,7 @@ void report_realtime_status()
   }
  
   // Report machine position
-  printPgmString(PSTR(",MPos:")); 
+  printPgmString(PSTR(",Pos:")); 
   for (i=0; i< N_AXIS; i++) {
     print_position[i] = current_position[i]/settings.steps_per_mm[i];
     printFloat_CoordValue(print_position[i]);
@@ -421,11 +423,9 @@ void report_realtime_status()
   }
   
   // Report work position
-  printPgmString(PSTR("WPos:")); 
+  printPgmString(PSTR("Cts:")); 
   for (i=0; i< N_AXIS; i++) {
-    print_position[i] -= gc_state.coord_system[i]+gc_state.coord_offset[i];
-    if (i == TOOL_LENGTH_OFFSET_AXIS) { print_position[i] -= gc_state.tool_length_offset; }    
-    printFloat_CoordValue(print_position[i]);
+    printInteger(current_position[i]);
     if (i < (N_AXIS-1)) { printPgmString(PSTR(",")); }
   }
     
