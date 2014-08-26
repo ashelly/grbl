@@ -1,0 +1,89 @@
+1) in stepper always check homing_axis_lock to enable steps.  Rename axis_lock to axis_engage
+   `st.step_outbits &= sys.axis_engage;`
+
+Homing Setup:
+   sys.limit_leaving = 0;
+   travel = max travel in approprate direction.
+   axis_engage = HOMING_CYCLE_N.
+   Start.
+
+In limit routine, On pin change:
+    sys.limit_state = LIMIT_PORT^limit_invert
+    
+    //If the limit is on or we are leaving (but not both) Stop axis.  Never Start axis here:
+    axis_engage &= ~(sys.limit_state^sys.limit_leaving)
+
+     //check for real alarm
+    if (state & !(sys.state & (STATE_ALARM|STATE_HOMING)) 
+           mc_reset(). sys.execute |= (ALARM| CRIT_EVENT)
+
+homing loop becomes:
+  for cycles {
+   do {
+      st_prep_buffer();
+      chheck reset()
+      }
+   while (sys.axis_engage & HOMING_CYCLE_N);  all bits are clear.
+
+   if sys.limit.leaving: sys.limit_leaving = 0
+   else  sys.limit_leaving = HOMING_CYCLE_N
+}
+  
+Which may let us move it into the main loop instead of interrupting it.
+
+
+ 
+
+
+1a) So initialize to all active axes
+2) In limit routine, always toggle axis lock when limit state changes. according to rule below
+ -- It would be lovely if the limit pins were in the same order as the step pins.
+ but anyway:
+    LIMIT high means on pin
+    Start Homing.
+      AxisLock = HOMING_AXES & LIMIT.  (only move the axes that are not homed).
+    Interrupt: 
+      -will only occur on change: 
+      A) expected: Limit goes high
+          If homing, AxisLock = (AxisLock ^ LIMIT) & HOMING_AXES.  
+                1^1=0 0^1=1
+
+
+
+HA LIM AL  -> AL
+1  1   1   -> 0  #hit limit
+1  1   0      0  #stay on limit
+1  0   1      1  #approahing li,mit
+1  0   0      0  #Limit released when not moving.  Don't start.
+0  1   1      0 #stop on limit always
+0  1   0      0 #"even if we weren't moving
+0  0   1      1 # alllow to keep moving
+0  0   0      0 # no change
+
+AL = AL&~LIM.  OK.  Now: How do we modify to allow commanded stepoff
+
+LE = LEAVING
+
+LE LIM AL ANL -> AL
+1  1   1  0 -> 1  #keep going away
+1  1   0  0    0   #don't start
+1  0   1  1    0 #STOP  
+1  0   0  0    0  #stay stopped  
+0  1   1  0    0  #stop on limit always
+0  1   0  0    0  #"even if we weren't moving
+0  0   1  1    1  # alllow to keep moving
+0  0   0  0    0  # no change
+
+
+AL = A&~LIM 
+
+AL&=~(LIM^LE).   
+
+If the limit is on or we are leaving (but not both) Stop A.  Never Start A.
+
+
+
+1
+0
+
+
