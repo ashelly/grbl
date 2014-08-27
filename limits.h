@@ -2,8 +2,8 @@
   limits.h - code pertaining to limit-switches and performing the homing cycle
   Part of Grbl
 
+  Copyright (c) 2013-2014 Sungeun K. Jeon  
   Copyright (c) 2009-2011 Simen Svale Skogsrud
-  Copyright (c) 2013 Sungeun K. Jeon  
 
   Grbl is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -22,11 +22,23 @@
 #ifndef limits_h
 #define limits_h 
 
+typedef struct {
+  uint8_t expected;
+  uint8_t active;
+  volatile uint8_t homenext;
+  uint8_t homecount;
+} limit_t;
+
+extern limit_t limits;
+
 // Initialize the limits module
 void limits_init();
 
-// Perform the homing cycle
-void limits_go_home();
+void limits_enable(uint8_t axes,uint8_t expected);
+void limits_disable();
+
+// Perform one portion of the homing cycle based on the input settings.
+void limits_go_home(uint8_t cycle_mask);
 
 // Check for soft limit violations
 void limits_soft_check(float *target);
