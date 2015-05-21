@@ -40,10 +40,15 @@
           // Define stepper driver enable/disable output pin.
 #define STEPPERS_DISABLE_DDR   DDRJ
 #define STEPPERS_DISABLE_PORT  PORTJ
-//  #define STEPPERS_DISABLE_BIT   1 // Atmega2560 pin X / Arduino Digital Pin 14 
-//#define STEPPERS_DISABLE_MASK (0x3C)   //Atmega2560 pins 65-68.   //Arduino xxxx
-#define STEPPERS_DISABLE_MASK (0x3E)   //Atmega2560 pins 65-68.   //temporarily add PJ1, Arduino 14
-//TODO: separate bits if needed
+#define X_DISABLE_BIT 2  // J2 / Atmega Pin 65
+#define Y_DISABLE_BIT 3  // J3 / Atmega Pin 66
+#define Z_DISABLE_BIT 4  // J4 / Atmega Pin 67
+#define C_DISABLE_BIT 5  // J5 /Atmega Pin 68
+#define STEPPERS_DISABLE_MASK ((1<<X_DISABLE_BIT)|(1<<Y_DISABLE_BIT)|(1<<Z_DISABLE_BIT)|(1<<C_DISABLE_BIT))   // All disable bits
+
+#define STEPPERS_LONG_LOCK_MASK  ((1<<Y_DISABLE_BIT)|(1<<Z_DISABLE_BIT))  //Keep gripper and Y engaged longer
+#define STEPPERS_LOCK_TIME_MULTIPLE 200  //ms*250 = quarter seconds so 255->63.75s
+
   
 
 // NOTE: All limit bit pins must be on the same port
@@ -67,7 +72,8 @@
 #define LIMIT_INT2_vect INT1_vect
 
 #define TIMING_DDR DDRA
-#define TIMING_PORT PORTA  ///TODO: move later
+#define TIMING_PORT PORTA  
+#define TIMING_PIN PINA
 #define TIMING_BIT  7
 #define TIMING_MASK       (1<<TIMING_BIT) // LED
 
@@ -108,7 +114,7 @@
 #define PINOUT_PCMSK     PCMSK2 // Pin change interrupt register
 #define PINOUT_MASK ((1<<PIN_RESET)|(1<<PIN_FEED_HOLD)|(1<<PIN_CYCLE_START))
 
-// Define probe switch input pin.  //MAG HOME
+// Define probe switch input pin.  
 #define PROBE_DDR       DDRK
 #define PROBE_PIN       PINK
 #define PROBE_PORT      PORTK
@@ -138,8 +144,10 @@
   #define ESTOP_DDR DDRG
   #define ESTOP_PORT PORTG 
   #define ESTOP_PIN PING
-#define ESTOP_BIT  2
+
 #define RUN_ENABLE_BIT  0
+#define ESTOP_BIT  2
+#define ESTOP_MASK (1<<ESTOP_BIT)
 
 #define MS_DDR DDRC
 #define MS_PORT PORTC
@@ -155,7 +163,7 @@
 #define FDBK_PORT PORTK
 #define FDBK_PIN  PINK
 
-#define MAG_SENSE_BIT 3
+#define ALIGN_SENSE_BIT 3  //This is also PROBE_BIT
 #define Z_ENC_IDX_BIT 4
 #define Z_ENC_CHA_BIT 5
 #define Z_ENC_CHB_BIT 6
@@ -163,8 +171,24 @@
 #define FDBK_INT       PCIE2  // Pin change interrupt enable pin
 #define FDBK_INT_vect  PCINT2_vect
 #define FDBK_PCMSK     PCMSK2 // Pin change interrupt register
-#define FDBK_MASK ((1<<MAG_SENSE_BIT)|(1<<Z_ENC_IDX_BIT)|(1<<Z_ENC_CHA_BIT)|(1<<Z_ENC_CHB_BIT))
+#define FDBK_MASK ((1<<Z_ENC_IDX_BIT)|(1<<Z_ENC_CHA_BIT)|(1<<Z_ENC_CHB_BIT) |(1<<ALIGN_SENSE_BIT)  )
 
+#define NEW_BOARD
+#ifdef NEW_BOARD
+#define MVOLT_DDR DDRF
+#define MVOLT_PORT PORTF
+#define MVOLT_PIN PINF
+#define X_MVOLT_BIT 1
+#define Y_MVOLT_BIT 2
+#define Z_MVOLT_BIT 3
+#define C_MVOLT_BIT 0
+#define MVOLT_MASK ((1<<X_MVOLT_BIT)|(1<<Y_MVOLT_BIT)|(1<<Z_MVOLT_BIT)|(1<<C_MVOLT_BIT))
+
+#define IO_RESET_DDR DDRA           
+#define IO_RESET_PORT PORTA         
+#define IO_RESET_BIT 0
+#define IO_RESET_MASK (1<<IO_RESET_BIT)
+#else
 #define MVOLT_DDR DDRD
 #define MVOLT_PORT PORTD
 #define MVOLT_PIN PIND
@@ -174,11 +198,11 @@
 #define C_MVOLT_BIT 0
 #define MVOLT_MASK ((1<<X_MVOLT_BIT)|(1<<Y_MVOLT_BIT)|(1<<Z_MVOLT_BIT)|(1<<C_MVOLT_BIT))
 
-#define IO_RESET_DDR DDRF
-#define IO_RESET_PORT PORTF
+#define IO_RESET_DDR DDRF           
+#define IO_RESET_PORT PORTF         
 #define IO_RESET_BIT 0
 #define IO_RESET_MASK (1<<IO_RESET_BIT)
-
+#endif
 
 #endif
 

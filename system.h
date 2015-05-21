@@ -47,15 +47,19 @@
 // NOTE: The system executor uses an unsigned 8-bit volatile variable (8 flag limit.) The default
 // flags are always false, so the runtime protocol only needs to check for a non-zero value to 
 // know when there is a runtime command to execute.
-#define EXEC_STATUS_REPORT  bit(0) // bitmask 00000001
+#define EXEC_RUNTIME_REPORT bit(0) // bitmask 00000001
 #define EXEC_CYCLE_START    bit(1) // bitmask 00000010
 #define EXEC_CYCLE_STOP     bit(2) // bitmask 00000100
 #define EXEC_FEED_HOLD      bit(3) // bitmask 00001000
 #define EXEC_RESET          bit(4) // bitmask 00010000
 #define EXEC_ALARM          bit(5) // bitmask 00100000
 #define EXEC_CRIT_EVENT     bit(6) // bitmask 01000000
-#define EXEC_LIMIT_REPORT   bit(7) // bitmask 10000000
+//
 
+#define REQUEST_STATUS_REPORT  bit(0)
+#define REQUEST_LIMIT_REPORT   bit(1)
+#define REQUEST_COUNTER_REPORT bit(2)
+#define REQUEST_VOLTAGE_REPORT bit(3)
 
 // Define system state bit map. The state variable primarily tracks the individual functions
 // of Grbl to manage each without overlapping. It is also used as a messaging flag for
@@ -75,14 +79,10 @@ typedef struct {
   uint8_t abort;                 // System abort flag. Forces exit back to main loop for reset.
   uint8_t state;                 // Tracks the current state of Grbl.
   uint8_t auto_start;            // Planner auto-start flag. Toggled off during feed hold. Defaulted by settings.  
-  
+  uint8_t eol_flag;              //flag for reporting linenumber;
   int32_t position[N_AXIS];      // Real-time machine (aka home) position vector in steps. 
                                  // NOTE: This may need to be a volatile variable, if problems arise.                             
   int32_t probe_position[N_AXIS]; // Last probe position in machine coordinates and steps.
-
-#if defined(USE_LINE_NUMBERS) && USE_LINE_NUMBERS == PERSIST_LINE_NUMBERS
-  int32_t last_line_number;
-#endif
 
 } system_t;
 extern system_t sys;
@@ -90,8 +90,8 @@ extern system_t sys;
 typedef struct {
   volatile uint8_t execute;      // Global system runtime executor bitflag variable. See EXEC bitmasks.
   volatile uint8_t probe_state;   // Probing state value.  Used to coordinate the probing cycle with stepper ISR.
-  volatile uint8_t homing_axis_lock;
   volatile uint8_t limits;                 //limit
+  volatile uint8_t report_rqsts;   //requestsd reports
 } sys_flags_t;
 extern volatile sys_flags_t sysflags;
 
@@ -101,6 +101,8 @@ extern volatile sys_flags_t sysflags;
 #else
   #define SYS_EXEC sysflags.execute
 #endif
+
+extern uint32_t masterclock;   //long running clock w/ 1ms resolution. rolls over every 49.7 days
 
 // Initialize the serial protocol
 void system_init();
@@ -113,5 +115,37 @@ void system_execute_runtime();
 
 // Execute the startup script lines stored in EEPROM upon initialization
 void system_execute_startup(char *line);
+
+//  * Utilities for line numbeirng * 
+// NOTE: Max line number is defined by the g-code standard to be 99999. It seems to be an
+// arbitrary value, and some GUIs may require more. So grbl increased it based on a max safe
+// value when converting a float (7.2 digit precision)s to an integer.
+
+// But We don't need such a big value, and we do need the high bit free 
+//#define MAX_LINE_NUMBER 9999999 
+#define LINENUMBER_EMPTY_BLOCK 0x8000 //the other bit, used as a flag
+#define LINENUMBER_SPECIAL      0x4000
+#define LINENUMBER_MAX         (LINENUMBER_SPECIAL-1)
+typedef uint16_t linenumber_t;  //resize back to int32 for bigger numbers
+
+
+void linenumber_init();
+uint8_t linenumber_insert(linenumber_t line_number);
+linenumber_t linenumber_get();
+linenumber_t linenumber_peek();
+
+
+enum {
+  time_STEP_ISR,
+  time_HOMING,
+  time_PROBE,
+  time_CLOCK
+};
+
+#define ACTIVE_TIMER time_STEP_ISR
+#define TIME_OFF(tid)  (((tid)==ACTIVE_TIMER)?(TIMING_PORT|=TIMING_MASK):0)
+#define TIME_ON(tid)  (((tid)==ACTIVE_TIMER)?(TIMING_PORT&=~TIMING_MASK):0)
+#define TIME_TOGGLE(tid)  (((tid)==ACTIVE_TIMER)?(TIMING_PIN|=TIMING_MASK):0)
+
 
 #endif

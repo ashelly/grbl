@@ -49,10 +49,13 @@
 // NOTE: If changed, manually update help message in report.c.
 #define CMD_STATUS_REPORT '?'
 #define CMD_LIMIT_REPORT '^'
+#define CMD_COUNTER_REPORT '*'
 #define CMD_FEED_HOLD '!'
 #define CMD_CYCLE_START '~'
 #define CMD_RESET 0x18 // ctrl-x.
 #define CMD_LIMIT_REPORT '^'
+#define CMD_VOLTAGE_REPORT '|'
+#define CMD_LINE_START '@'    //special start, not picked off, to ensure proper sequencing.
 
 // If homing is enabled, homing init lock sets Grbl into an alarm state upon power up. This forces
 // the user to perform the homing cycle (or override the locks) before doing anything else. This is
@@ -105,18 +108,9 @@
 
 // Allows GRBL to track and report gcode line numbers.  Enabling this means that the planning buffer
 // goes from 18 or 16 to make room for the additional line number data in the plan_block_t struct
-//#define USE_LINE_NUMBERS // Disabled by default. Uncomment to enable.
-#define PERSIST_LINE_NUMBERS 1
-#define USE_LINE_NUMBERS PERSIST_LINE_NUMBERS
-//- could get rid of somany inline defines with something like this
-//#define plan_buffer_line(t,f,i,l) plan_buffer_line_number((t),(f),(i),(l))
-//#define plan_buffer_line(t,f,i,l) plan_buffer_line_x((t),(f),(i))
+#define USE_LINE_NUMBERS // Always enabled for Our build.
 
 
-// Allows GRBL to report the real-time feed rate.  Enabling this means that GRBL will be reporting more 
-// data with each status update.
-// NOTE: This is experimental and doesn't quite work 100%. Maybe fixed or refactored later.
-// #define REPORT_REALTIME_RATE // Disabled by default. Uncomment to enable.
  
 // Enables a second coolant control pin via the mist coolant g-code command M7 on the Arduino Uno
 // analog pin 5. Only use this option if you require a second coolant control pin.
@@ -246,7 +240,7 @@
 // electrical interference on the signal cables from external sources. It's recommended to first
 // use shielded signal cables with their shielding connected to ground (old USB/computer cables 
 // work well and are cheap to find) and wire in a low-pass circuit into each limit pin.
-#define ENABLE_SOFTWARE_DEBOUNCE // Default disabled. Uncomment to enable.
+//#define ENABLE_SOFTWARE_DEBOUNCE // Default disabled. Uncomment to enable.
 
 // ---------------------------------------------------------------------------------------
 

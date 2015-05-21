@@ -271,48 +271,52 @@
 
 #ifdef DEFAULTS_KEYME_FM
   // generic default for KeyMe Machine
-  #define DEFAULT_X_STEPS_PER_MM 400.0
-  #define DEFAULT_Y_STEPS_PER_MM 400.0
+  #define DEFAULT_X_STEPS_PER_MM 66.666
+  #define DEFAULT_Y_STEPS_PER_MM 40.0
   #define DEFAULT_Z_STEPS_PER_MM 400.0
-  #define DEFAULT_C_STEPS_PER_MM 400.0
-  #define DEFAULT_X_MAX_RATE 1000.0 // mm/min
-  #define DEFAULT_Y_MAX_RATE 1000.0 // 
-  #define DEFAULT_Z_MAX_RATE 1000.0 // 
-  #define DEFAULT_C_MAX_RATE 400.0 // 
-  #define DEFAULT_X_ACCELERATION (10.0*60*60) // 10*60*60 mm/min^2 
-  #define DEFAULT_Y_ACCELERATION (10.0*60*60) // 10*60*60 mm/min^2 
-  #define DEFAULT_Z_ACCELERATION (10.0*60*60) // 10*60*60 mm/min^2 
-  #define DEFAULT_C_ACCELERATION (6.0*60*60) // 1*60*60 mm/min^2 
-  #define DEFAULT_X_MAX_TRAVEL 50.0 // mm
-  #define DEFAULT_Y_MAX_TRAVEL 50.0 // mm
+  #define DEFAULT_C_STEPS_PER_MM 58.0
+  #define DEFAULT_X_MAX_RATE 1320.0 // mm/min
+  #define DEFAULT_Y_MAX_RATE 2100.0 // 
+  #define DEFAULT_Z_MAX_RATE 400.0 // 
+  #define DEFAULT_C_MAX_RATE 300.0 // 
+  #define DEFAULT_X_ACCELERATION (50.0*60*60) // mm/sec^2 
+  #define DEFAULT_Y_ACCELERATION (75.0*60*60) // mm/sec^2 
+  #define DEFAULT_Z_ACCELERATION (8.0*60*60) //  mm/sec^2 
+  #define DEFAULT_C_ACCELERATION (4.50*60*60) // mm/sec^2 
+  #define DEFAULT_X_MAX_TRAVEL 100.0 // mm
+  #define DEFAULT_Y_MAX_TRAVEL 200.0 // mm
   #define DEFAULT_Z_MAX_TRAVEL 50.0 // mm
-  #define DEFAULT_C_MAX_TRAVEL 50.0 // mm
+  #define DEFAULT_C_MAX_TRAVEL 762.0 // mm
   #define DEFAULT_STEP_PULSE_MICROSECONDS 15
   #define DEFAULT_STEPPING_INVERT_MASK 0
-  #define DEFAULT_DIRECTION_INVERT_MASK 0
-  #define DEFAULT_STEPPER_IDLE_LOCK_TIME 25 // msec (0-254, 255 keeps steppers enabled)
+  #define DEFAULT_DIRECTION_INVERT_MASK 64
+  #define DEFAULT_STEPPER_IDLE_LOCK_TIME 250   // msec (0-254, 255 keeps steppers enabled)
   #define DEFAULT_JUNCTION_DEVIATION 0.02 // mm
   #define DEFAULT_ARC_TOLERANCE 0.002 // mm
   #define DEFAULT_DECIMAL_PLACES 3
   #define DEFAULT_REPORT_INCHES 0 // false
-  #define DEFAULT_AUTO_START 1 // true
+  #define DEFAULT_AUTO_START 0 // true
   #define DEFAULT_INVERT_ST_ENABLE 0 // false
   #define DEFAULT_INVERT_LIMIT_PINS 1 // false
   #define DEFAULT_SOFT_LIMIT_ENABLE 0 // false
   #define DEFAULT_HARD_LIMIT_ENABLE 0  // false
   #define DEFAULT_HOMING_ENABLE 1  // false
   #define DEFAULT_HOMING_DIR_MASK 0 // move positive dir (negative with keyme mods)
-  #define DEFAULT_HOMING_FEED_RATE 10.0 // mm/min
-  #define DEFAULT_HOMING_SEEK_RATE 20.0 // mm/min
+  #define DEFAULT_HOMING_FEED_RATE 100.0 // mm/min
+  #define DEFAULT_X_HOMING_SEEK_RATE 200.0 // mm/min
+  #define DEFAULT_Y_HOMING_SEEK_RATE 200.0 // mm/min
+  #define DEFAULT_Z_HOMING_SEEK_RATE 200.0 // mm/min
+  #define DEFAULT_C_HOMING_SEEK_RATE 200.0 // mm/min
   #define DEFAULT_HOMING_DEBOUNCE_DELAY 250 // msec (0-65k)
   #define DEFAULT_HOMING_PULLOFF 1.0 // mm
   #define DEFAULT_SINGLE_STEP_RATE 10  // steps/sec
   #define DEFAULT_MICROSTEPPING 0x55   //half stepping on all axes
   #define DEFAULT_DECAY_MODE 0         //slowest
+  #define DEFAULT_COUNTS_PER_IDX 4000  //counts per encoder rev
 #endif
 
 #ifdef DEFAULTS_BENCH
-  // generic default for KeyMe Machine
+  // generic default for KeyMe development benchtop
   #define DEFAULT_X_STEPS_PER_MM 200.0
   #define DEFAULT_Y_STEPS_PER_MM 200.0
   #define DEFAULT_Z_STEPS_PER_MM 200.0
@@ -351,6 +355,7 @@
   #define DEFAULT_SINGLE_STEP_RATE 10  // steps/sec
   #define DEFAULT_MICROSTEPPING 0x55   //half stepping on all axes
   #define DEFAULT_DECAY_MODE 0         //slowest
+  #define DEFAULT_COUNTS_PER_IDX 4000  //counts per encoder rev
 #endif
 
 #endif

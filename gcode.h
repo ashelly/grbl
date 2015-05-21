@@ -147,7 +147,7 @@ typedef struct {
   float f;         // Feed
   float ijk[3];    // I,J,K Axis arc offsets
   uint8_t l;       // G10 or canned cycles parameters
-  int32_t n;       // Line number
+  linenumber_t n;       // Line number
   float p;         // G10 or dwell parameters
   // float q;      // G82 peck drilling
   float r;         // Arc radius

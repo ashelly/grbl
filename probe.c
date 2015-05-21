@@ -2,7 +2,7 @@
   probe.c - code pertaining to probing methods
   Part of Grbl
 
-  Copyright (c) 2014 Sungeun K. Jeon
+  Copyright (c) 2014 Sungeun K. Jeon, Adam Shelly
 
   Grbl is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -20,6 +20,8 @@
   
 #include "system.h"
 #include "probe.h"
+#include "counters.h"
+
 
 
 // Probe pin initialization routine.
@@ -41,11 +43,17 @@ uint8_t probe_get_state()
 // NOTE: This function must be extremely efficient as to not bog down the stepper ISR.
 void probe_state_monitor()
 {
-  if (sysflags.probe_state == PROBE_ACTIVE) { 
-    if (probe_get_state()) {
-      sysflags.probe_state = PROBE_OFF;
-      memcpy(sys.probe_position, sys.position, sizeof(float)*N_AXIS);
-      SYS_EXEC |= EXEC_FEED_HOLD;
-    }
+  uint8_t probe_on = probe_get_state();
+  if (sysflags.probe_state == PROBE_ACTIVE && probe_on) {
+    sysflags.probe_state = PROBE_OFF;
+    memcpy(sys.probe_position, sys.position, sizeof(float)*N_AXIS);
+    SYS_EXEC |= EXEC_FEED_HOLD;
+  }
+  if (ESTOP_PIN & ESTOP_MASK) {
+    SYS_EXEC |= (EXEC_FEED_HOLD|EXEC_ALARM|EXEC_CRIT_EVENT);
   }
 }
+
+
+
+

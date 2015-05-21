@@ -21,6 +21,9 @@
 #include "system.h"
 #include "counters.h"
 
+uint32_t alignment_debounce_timer=0; 
+#define PROBE_DEBOUNCE_DELAY_MS 25
+
 
 counters_t counters = {{0}};
 
@@ -32,35 +35,90 @@ void counters_init()
   FDBK_DDR &= ~(FDBK_MASK); // Configure as input pins
   FDBK_PORT |= FDBK_MASK;   // Enable internal pull-up resistors. Normal high operation. //TODO test
 #endif
-  /*
-  FDBK_PCMSK |= FDBK_MASK;  // Enable specific pins of the Pin Change Interrupt
-  PCICR |= (1 << FDBK_INT);   // Enable Pin Change Interrupt
-  */
+  counters.state = FDBK_PIN&FDBK_MASK; //record initial state
+
+  counters_enable(0); //default to no encoder
 }
 
-// Returns the counters pin state. Triggered = true. Called by gcode parser and counters state monitor.
-uint8_t counters_reset(uint8_t axis)
+
+void counters_enable(int enable) 
 {
-  return counters.counts[axis]=0;
+  if (enable) {
+    FDBK_PCMSK |= FDBK_MASK;    // Enable specific pins of the Pin Change Interrupt
+    PCICR |= (1 << FDBK_INT);   // Enable Pin Change Interrupt
+  }
+  else {
+    FDBK_PCMSK &= ~FDBK_MASK;    // Disable specific pins of the Pin Change Interrupt
+    PCICR &= ~(1 << FDBK_INT);   // Disable Pin Change Interrupt
+  }
+
 }
 
 
-// Returns the counters pin state. Triggered = true. Called by gcode parser and counters state monitor.
-uint8_t counters_get_count(uint8_t axis)
+// Resets the counts for an axis
+void  counters_reset(uint8_t axis)
+{
+  counters.counts[axis]=0;
+  if (axis == Z_AXIS) { counters.idx=0; }
+}
+
+
+// Returns the counters pin state. Triggered = true.  and counters state monitor.
+count_t counters_get_count(uint8_t axis)
 {
   return counters.counts[axis];
 }
 
-
-// Monitors counters pin state and records the system position when detected. Called by the
-// stepper ISR per ISR tick.
-void counters_state_monitor()
-{
-  //TODO: 
+uint8_t counters_get_state(){
+  return counters.state;
 }
 
-/* TODO: implement encoder counter - maybe needs debounce/
+int16_t counters_get_idx(){
+  return counters.idx;
+}
+
+
+int debounce(uint32_t* bounce_clock, int16_t lockout_ms) {
+  uint32_t clock = masterclock;
+  //allow another reading if lockout has expired 
+  //  (or if clock has rolled over - otherwise we could wait forever )
+  if ( clock > (*bounce_clock + lockout_ms) || (clock < *bounce_clock) ) {
+    *bounce_clock = clock;
+    return 1;
+  }
+  return 0;
+}
+
+
+
 ISR(FDBK_INT_vect) {
-  counters.state = FDBK_PIN&FDBK_MASK;
+  uint8_t state =  FDBK_PIN&FDBK_MASK;
+  uint8_t change = (state^counters.state);
+  int8_t dir=0;
+
+  //look for encoder change
+  if (change & ((1<<Z_ENC_CHA_BIT)|(1<<Z_ENC_CHB_BIT))) { //if a or b changed
+    counters.anew = (state>>Z_ENC_CHA_BIT)&1;
+    dir = counters.anew^counters.bold ? 1 : -1;
+    counters.bold = (state>>Z_ENC_CHB_BIT)&1;
+    counters.counts[Z_AXIS] += dir;
+  }
+
+  //count encoder indexes
+  if (change & (1<<Z_ENC_IDX_BIT)) { //idx changed
+      uint8_t idx_on = ((state>>Z_ENC_IDX_BIT)&1);
+      if (idx_on) {
+        counters.idx += dir;
+      }
+  }
+
+  //count rotary axis alignment pulses.
+  if (change & (1<<ALIGN_SENSE_BIT)) { //sensor changed
+    if (debounce(&alignment_debounce_timer, PROBE_DEBOUNCE_DELAY_MS)){
+      if (!(state&PROBE_MASK)) { //low is on.
+        counters.counts[C_AXIS]++;
+      }
+    }
+  }
+  counters.state = state;
 }
-*/

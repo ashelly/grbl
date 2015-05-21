@@ -44,12 +44,12 @@
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
 // Bit field and masking macros
-#define bit(n) (1 << n) 
-#define bit_true(x,mask) (x |= mask)
-#define bit_false(x,mask) (x &= ~mask)
-#define bit_toggle(x,mask) (x ^= mask)
-#define bit_istrue(x,mask) ((x & mask) != 0)
-#define bit_isfalse(x,mask) ((x & mask) == 0)
+#define bit(n) (1 << (n)) 
+#define bit_true(x,mask) ((x) |= (mask))
+#define bit_false(x,mask) ((x) &= ~(mask))
+#define bit_toggle(x,mask) ((x) ^= (mask))
+#define bit_istrue(x,mask) (((x) & (mask)) != 0)
+#define bit_isfalse(x,mask) (((x) & (mask)) == 0)
 
 // Read a floating point value from a string. Line points to the input buffer, char_counter 
 // is the indexer pointing to the current character of the line, while float_ptr is 

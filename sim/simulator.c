@@ -38,7 +38,7 @@ int raw_steps[N_AXIS] = {0}; //step count based on pin change
 uint32_t block_number= 0;
 
 sim_vars_t sim={0};
-
+uint8_t limit_invert = 0;
 //local prototypes 
 void print_steps(bool force);
 void sim_monitor_step_port(uint8_t portval);
@@ -49,20 +49,30 @@ io_sim_monitor_t port_monitors[] =  {
   {0,0}
 };
 
+//#Todo: move limits & probes stuff to own file
+void limits_on(int lbit){
+  limit_invert?bit_true(LIMIT_PIN,bit(lbit)):bit_false(LIMIT_PIN,bit(lbit));
+}
+void limits_off(int lbit){
+  limit_invert?bit_false(LIMIT_PIN,bit(lbit)):bit_true(LIMIT_PIN,bit(lbit));
+}
+
 
 //setup 
 void init_simulator(float time_multiplier) {
+  int i;
 
   //register the interrupt handlers we actually use.
   compa_vect[1] = interrupt_TIMER1_COMPA_vect;
   ovf_vect[0] = interrupt_TIMER0_OVF_vect;
+  compa_vect[2] = interrupt_TIMER2_COMPA_vect;
 #ifdef STEP_PULSE_DELAY
   compa_vect[0] = interrupt_TIMER0_COMPA_vect;
 #endif
 #ifdef ENABLE_SOFTWARE_DEBOUNCE
   wdt_vect = interrupt_WDT_vect;
 #endif
-  pc_vect = interrupt_LIMIT_INT_vect;
+  //  pc_vect = interrupt_LIMIT_INT_vect;
 
 
   io_sim_init(port_monitors);
@@ -70,6 +80,13 @@ void init_simulator(float time_multiplier) {
   sim.next_print_time = args.step_time;
   sim.speedup = time_multiplier;
   sim.baud_ticks = (int)((double)F_CPU*8/BAUD_RATE); //ticks per byte
+
+  //Default values of IO:
+  PROBE_PIN|=PROBE_MASK;
+  limit_invert =  (bit_istrue(settings.flags,BITFLAG_INVERT_LIMIT_PINS))?LIMIT_MASK:0;
+  for (i=0;i<N_AXIS;i++){
+    limits_off(i+LIMIT_BIT_SHIFT);
+  }
 }
 
 
@@ -84,18 +101,45 @@ int shutdown_simulator(uint8_t exitflag) {
   return 1/(!exitflag);  //force exception, since avr_main() has no returns.
 }
 
+
+
 void simulate_limits(int idx, int raw_steps) {
   int min = -settings.homing_pulloff * settings.steps_per_mm[idx];
-  int max = -settings.max_travel[idx]*settings.steps_per_mm[idx] - min;
-  if (raw_steps < min) {
-    printf("LOWER LIMIT HIT\n");
-    //TODO: set limit pins, cause pin change interrupt
+  int max = settings.max_travel[idx]*settings.steps_per_mm[idx] - min;
+  if (raw_steps <= min-1) {
+    //printf("LOWER LIMIT HIT %d\n",raw_steps);
+    limits_on(idx+LIMIT_BIT_SHIFT);
   }
-  else if (raw_steps>max) {
-    printf("UPPEER LIMIT HIT\n");
-    //TODO: set limit pins, cause pin change interrupt
+  else {
+    limits_off(idx+LIMIT_BIT_SHIFT);
+    if (raw_steps>=max+1) {
+      printf("UPPER LIMIT HIT\n");
+    }
+  }
+    
+  if (idx==2) { 
+    FDBK_PIN &= 7<<Z_ENC_CHA_BIT;
+    FDBK_PIN |= ~(raw_steps&3)<<Z_ENC_CHA_BIT;
+    if (raw_steps%4000==0){
+      FDBK_PIN|=(1<<Z_ENC_IDX_BIT);
+    }
+    interrupt_FDBK_INT_vect();
+  }
+  else if (idx==3) { 
+    if ((raw_steps&0xFF)==0){
+      //    printf("p?%d(%x) ",raw_steps,PROBE_PIN);
+      PROBE_PIN&=~PROBE_MASK;
+      interrupt_FDBK_INT_vect();
+    } else {
+      if (!(PROBE_PIN&PROBE_MASK)){
+        //        printf("p?%d(%x) ",raw_steps,PROBE_PIN);
+        PROBE_PIN|=PROBE_MASK;
+        interrupt_FDBK_INT_vect();
+      }
+    }
   }
 }
+
 
 
 void sim_monitor_step_port(uint8_t portval) {
@@ -116,7 +160,6 @@ void sim_monitor_step_port(uint8_t portval) {
   }
   last_step_state = step_state;
 }
-
 
 
 void simulate_hardware(bool do_serial){

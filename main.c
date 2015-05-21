@@ -32,6 +32,7 @@
 #include "limits.h"
 #include "probe.h"
 #include "report.h"
+#include "counters.h"
 
 
 // Declare system global variable structure
@@ -46,6 +47,7 @@ int main(void)
   settings_init(); // Load grbl settings from EEPROM
   stepper_init();  // Configure stepper pins and interrupt timers
   system_init();   // Configure pinout pins and pin-change interrupt
+  counters_init(); //configure encoder and counter interrupt.
   
   memset(&sys, 0, sizeof(sys));  // Clear all system variables
   memset((void*)&sysflags, 0, sizeof(sysflags));  // and volatile
@@ -75,6 +77,7 @@ int main(void)
     // Reset Grbl primary systems.
     serial_reset_read_buffer(); // Clear serial read buffer
     gc_init(); // Set g-code parser to default state
+    linenumber_init();  //reset line numbering buffer
     spindle_init();
     coolant_init();
     limits_init(); 

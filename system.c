@@ -24,40 +24,35 @@
 #include "motion_control.h"
 #include "report.h"
 #include "print.h"
+#include "counters.h"
+
+
+uint32_t masterclock=0;  
 
 
 void system_init() 
 {
-  TIMING_DDR |= TIMING_MASK;  //timing output
+  TIMING_DDR |= TIMING_MASK;
+  TIME_ON(ACTIVE_TIMER);
 
-#ifndef KEYME_BOARD
-  PINOUT_DDR &= ~(PINOUT_MASK); // Configure as input pins
-  PINOUT_PORT |= PINOUT_MASK;   // Enable internal pull-up resistors. Normal high operation.
-  PINOUT_PCMSK |= PINOUT_MASK;  // Enable specific pins of the Pin Change Interrupt
-  PCICR |= (1 << PINOUT_INT);   // Enable Pin Change Interrupt
+  linenumber_init();
+
+  //setup masterclock
+  
+  TIMSK2 &= (~(1<<OCIE2B));  
+  TIMSK2 |= ((1<<TOIE2)|(1<<OCIE2A)); // ovf INTERRUPT //TODO: test without TOIE2
+  TCCR2A = (1<<WGM21);  // CTC Mode, use OCRA2 as top 
+  TCCR2B = 4;           // 64 prescale
+  OCR2A = 249;          //(249+1) * 64 prescale / 16Mhz = 1 ms
+  OCR2B = 0;
 }
 
-
-// Pin change interrupt for pin-out commands, i.e. cycle start, feed hold, and reset. Sets
-// only the runtime command execute variable to have the main program execute these when 
-// its ready. This works exactly like the character-based runtime commands when picked off
-// directly from the incoming serial data stream.
-ISR(PINOUT_INT_vect) 
+ISR(TIMER2_COMPA_vect)
 {
-  // Enter only if any pinout pin is actively low.
-  if ((PINOUT_PIN & PINOUT_MASK) ^ PINOUT_MASK) { 
-    if (bit_isfalse(PINOUT_PIN,bit(PIN_RESET))) {
-      mc_reset();
-    } else if (bit_isfalse(PINOUT_PIN,bit(PIN_FEED_HOLD))) {
-      SYS_EXEC |= EXEC_FEED_HOLD; 
-    } else if (bit_isfalse(PINOUT_PIN,bit(PIN_CYCLE_START))) {
-      SYS_EXEC |= EXEC_CYCLE_START;
-    } 
-  }
+  TIME_TOGGLE(time_CLOCK);
+  masterclock++;
 }
-#else
-}
-#endif
+
 
 
 // Executes user startup script, if stored.
@@ -76,7 +71,6 @@ void system_execute_startup(char *line)
   }  
 }
 
-
 // Directs and executes one line of formatted input from protocol_process. While mostly
 // incoming streaming g-code blocks, this also executes Grbl internal commands, such as 
 // settings, initiating the homing cycle, and toggling switch states. This differs from
@@ -94,7 +88,7 @@ uint8_t system_execute_line(char *line)
     case 0 : report_grbl_help(); break;
     case 'G' : // Prints gcode parser state
       if ( line[++char_counter] != 0 ) { return(STATUS_INVALID_STATEMENT); }
-      else { report_gcode_modes(); }
+      else { report_gcode_modes();  return(STATUS_QUIET_OK);}
       break;   
     case 'C' : // Set check g-code mode [IDLE/CHECK]
       if ( line[++char_counter] != 0 ) { return(STATUS_INVALID_STATEMENT); }
@@ -119,12 +113,33 @@ uint8_t system_execute_line(char *line)
       } // Otherwise, no effect.
       break;      
 #ifdef KEYME_BOARD
-    case 'E':
-      report_counters();
+     case 'E': {
+       char axis = line[++char_counter];
+        if ( axis != 0 ) {
+          if ( line[++char_counter] != 0 ) { return(STATUS_INVALID_STATEMENT); }
+          if ( axis == '1' || axis == '0') {
+            counters_enable(axis-'0');
+          }
+          else {
+            axis = get_axis_idx(axis); 
+            if (axis == N_AXIS) { return(STATUS_INVALID_STATEMENT); }
+            counters_reset(axis);
+          }
+        }
+        return STATUS_ALT_REPORT(REQUEST_COUNTER_REPORT);
+     }
       break;
     case 'S':
-      report_sys_info();
+      if ( line[++char_counter] != 0 ) { return(STATUS_INVALID_STATEMENT); }
+      return STATUS_ALT_REPORT(REQUEST_VOLTAGE_REPORT);
       break;
+    case 'R':
+      if ( line[++char_counter] != 0 ) { return(STATUS_INVALID_STATEMENT); }
+      IO_RESET_PORT |= IO_RESET_MASK;  //reset IO.  Will re-enable in loop
+      break;
+      
+      
+
 #endif
          
 //  case 'J' : break;  // Jogging methods
@@ -150,30 +165,33 @@ uint8_t system_execute_line(char *line)
         case '#' : // Print Grbl NGC parameters
           if ( line[++char_counter] != 0 ) { return(STATUS_INVALID_STATEMENT); }
           else { report_ngc_parameters(); }
-          break;          
+          break;
 
         case 'H' : // Perform homing cycle [IDLE/ALARM], only if idle or lost
-          if (bit_istrue(settings.flags,BITFLAG_HOMING_ENABLE)) { 
-				char axis = line[++char_counter];
-				if (axis == '\0' ) {  
-				  axis = HOMING_CYCLE_ALL; //do all axes if none specified
-				}
-				else {
-				  axis = get_axis_idx(axis); 
-				  if (axis == N_AXIS) { return(STATUS_INVALID_STATEMENT); }
-				  axis = (1<<axis);  //convert idx to mask
-				}
-				report_status_message(STATUS_OK); //report that we are homing
-            mc_homing_cycle(axis); 
+          if (bit_istrue(settings.flags,BITFLAG_HOMING_ENABLE)) {
+            char axis = line[++char_counter];
+            if (axis == '\0' ) {
+              axis = HOMING_CYCLE_ALL; //do all axes if none specified
+            }
+            else {
+              if ( line[++char_counter] != 0 ) { return(STATUS_INVALID_STATEMENT); }
+              axis = get_axis_idx(axis);
+              if (axis == N_AXIS) { return(STATUS_INVALID_STATEMENT); }
+              axis = (1<<axis);  //convert idx to mask
+            }
+            report_status_message(STATUS_OK); //report that we are homing
+            mc_homing_cycle(axis);
             if (!sys.abort) { system_execute_startup(line); } // Execute startup scripts after successful homing.
+            return STATUS_QUIET_OK; //already said ok
           } else { return(STATUS_SETTING_DISABLED); }
           break;
         case 'I' : // Print or store build info. [IDLE/ALARM]
-          if ( line[++char_counter] == 0 ) { 
+          if ( line[++char_counter] == 0 ) {
             if (!(settings_read_build_info(line))) {
               report_status_message(STATUS_SETTING_READ_FAIL);
             } else {
               report_build_info(line);
+              return STATUS_QUIET_OK;
             }
           } else { // Store startup line [IDLE/ALARM]
             if(line[char_counter++] != '=') { return(STATUS_INVALID_STATEMENT); }
@@ -183,7 +201,7 @@ uint8_t system_execute_line(char *line)
             } while (line[char_counter++] != 0);
             settings_store_build_info(line);
           }
-          break;                 
+          break;
         case 'N' : // Startup lines. [IDLE/ALARM]
           if ( line[++char_counter] == 0 ) { // Print startup lines
             for (helper_var=0; helper_var < N_STARTUP_LINE; helper_var++) {
@@ -196,7 +214,7 @@ uint8_t system_execute_line(char *line)
             break;
           } else { // Store startup line [IDLE Only] Prevents motion during ALARM.
             if (sys.state != STATE_IDLE) { return(STATUS_IDLE_ERROR); } // Store only when idle.
-            helper_var = true;  // Set helper_var to flag storing method. 
+            helper_var = true;  // Set helper_var to flag storing method.
             // No break. Continues into default: to read remaining command characters.
           }
         default :  // Storing setting methods [IDLE/ALARM]
@@ -211,7 +229,7 @@ uint8_t system_execute_line(char *line)
             // Execute gcode block to ensure block is valid.
             helper_var = gc_execute_line(line); // Set helper_var to returned status code.
             if (helper_var) { return(helper_var); }
-            else { 
+            else {
               helper_var = trunc(parameter); // Set helper_var to int value of parameter
               settings_store_startup_line(helper_var,line);
             }
@@ -220,7 +238,64 @@ uint8_t system_execute_line(char *line)
             if(line[char_counter] != 0) { return(STATUS_INVALID_STATEMENT); }
             return(settings_store_global_setting(parameter, value));
           }
-      }    
+      }
   }
   return(STATUS_OK); // If '$' command makes it to here, then everything's ok.
+}
+
+
+// * line num stuff *
+#define STLT_SIZE BLOCK_BUFFER_SIZE+1
+
+typedef struct {
+  linenumber_t lines[STLT_SIZE];
+  uint8_t head;
+  uint8_t tail;
+} st_linetrack_t;
+static st_linetrack_t st_lt;
+
+
+void linenumber_init() {
+  //init line numbering
+  st_lt.head = 1;
+  st_lt.tail = 0;
+  memset(st_lt.lines,BLOCK_BUFFER_SIZE,sizeof(st_lt.lines));
+}
+
+
+uint8_t linenumber_insert(linenumber_t line_number)
+{
+  if (st_lt.head!=st_lt.tail){
+    st_lt.lines[st_lt.head] = line_number;
+    if (++st_lt.head>=STLT_SIZE) { st_lt.head = 0;}
+  }
+  //calculate and return number of items in queue.
+  uint8_t head = st_lt.head;
+  if (head<=st_lt.tail){ head+=STLT_SIZE;}
+  return head-st_lt.tail-1;
+}
+
+uint8_t linenumber_next(){
+  uint8_t read_idx = st_lt.tail;
+  if (++read_idx>=STLT_SIZE) { read_idx=0; }
+  return read_idx;
+}
+uint8_t ln_head() { return st_lt.head;}
+
+
+linenumber_t linenumber_get(){
+  uint8_t read_idx = linenumber_next();
+  if (read_idx != st_lt.head) {
+    st_lt.tail = read_idx;
+    return st_lt.lines[read_idx];
+  }
+  return 0;
+}
+
+linenumber_t linenumber_peek(){
+  uint8_t read_idx = linenumber_next();
+  if (read_idx != st_lt.head) {
+    return st_lt.lines[read_idx];
+  }
+  return 0;
 }

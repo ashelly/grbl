@@ -27,7 +27,7 @@
 #include "protocol.h"
 #include "stepper.h"
 #include "settings.h"
-
+#include "report.h"
 
 #define SOME_LARGE_VALUE 1.0E+38 // Used by rapids and acceleration maximization calculations. Just needs
                                  // to be larger than any feasible (mm/min)^2 or mm/sec^2 value.
@@ -48,6 +48,10 @@ typedef struct {
 } planner_t;
 static planner_t pl;
 
+
+uint8_t plan_get_block_index(plan_block_t* block_p){
+  return block_p-block_buffer;
+}
 
 // Returns the index of the next block in the ring buffer. Also called by stepper segment buffer.
 uint8_t plan_next_block_index(uint8_t block_index) 
@@ -259,11 +263,7 @@ uint8_t plan_check_full_buffer()
    is used in three ways: as a normal feed rate if invert_feed_rate is false, as inverse time if
    invert_feed_rate is true, or as seek/rapids rate if the feed_rate value is negative (and
    invert_feed_rate always false). */
-#ifdef USE_LINE_NUMBERS   
-void plan_buffer_line(float *target, float feed_rate, uint8_t invert_feed_rate, int32_t line_number) 
-#else
-void plan_buffer_line(float *target, float feed_rate, uint8_t invert_feed_rate) 
-#endif
+void plan_buffer_line(float *target, float feed_rate, uint8_t invert_feed_rate, linenumber_t line_number) 
 {
   // Prepare and initialize new block
   plan_block_t *block = &block_buffer[block_buffer_head];
@@ -271,12 +271,8 @@ void plan_buffer_line(float *target, float feed_rate, uint8_t invert_feed_rate)
   block->millimeters = 0;
   block->direction_bits = 0;
   block->acceleration = SOME_LARGE_VALUE; // Scaled down to maximum acceleration later
-  #ifdef USE_LINE_NUMBERS
-    block->line_number = line_number;
-  #endif
+  block->line_number = line_number;
 
-  // Compute and store initial move distance data.
-  // TODO: After this for-loop, we don't touch the stepper algorithm data. Might be a good idea
   // to try to keep these types of things completely separate from the planner for portability.
   int32_t target_steps[N_AXIS];
   float unit_vec[N_AXIS], delta_mm;
@@ -304,9 +300,15 @@ void plan_buffer_line(float *target, float feed_rate, uint8_t invert_feed_rate)
   
   // Bail if this is a zero-length block. Highly unlikely to occur.
   if (block->step_event_count == 0) { 
-    SYS_EXEC |= EXEC_STATUS_REPORT;
-    return; 
-  } 
+    if (linenumber_insert(block->line_number|LINENUMBER_EMPTY_BLOCK) == 1) { 
+      //was empty, so report immediately;
+      request_eol_report();
+    }
+    return;
+  }
+  if (block->line_number!=LINENUMBER_EMPTY_BLOCK){
+    linenumber_insert(block->line_number);
+  }
   
   // Adjust feed_rate value to mm/min depending on type of rate input (normal, inverse time, or rapids)
   // TODO: Need to distinguish a rapids vs feed move for overrides. Some flag of some sort.
@@ -408,6 +410,9 @@ void plan_sync_position()
   }
 }
 
+float plan_get_position(uint8_t axis){ //in mm
+  return (float)pl.position[axis]/settings.steps_per_mm[axis];
+}
 
 // Re-initialize buffer plan with a partially completed block, assumed to exist at the buffer tail.
 // Called after a steppers have come to a complete stop for a feed hold and the cycle is stopped.

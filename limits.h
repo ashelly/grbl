@@ -33,6 +33,8 @@ extern limit_t limits;
 
 // Initialize the limits module
 void limits_init();
+// Configure the limit enable/disable state
+void limits_configure();
 
 void limits_enable(uint8_t axes,uint8_t expected);
 void limits_disable();

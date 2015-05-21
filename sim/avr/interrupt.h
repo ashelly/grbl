@@ -32,6 +32,7 @@
 void interrupt_TIMER0_COMPA_vect();
 void interrupt_TIMER1_COMPA_vect();
 void interrupt_TIMER0_OVF_vect();
+void interrupt_TIMER2_COMPA_vect();
 void interrupt_SERIAL_UDRE();
 void interrupt_SERIAL_RX();
 void interrupt_LIMIT_INT_vect();

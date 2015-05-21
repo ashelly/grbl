@@ -27,6 +27,7 @@
 #include "serial.h"
 #include "motion_control.h"
 #include "protocol.h"
+#include "report.h"
 
 
 uint8_t rx_buffer[RX_BUFFER_SIZE];
@@ -36,6 +37,8 @@ volatile uint8_t rx_buffer_tail = 0;
 uint8_t tx_buffer[TX_BUFFER_SIZE];
 uint8_t tx_buffer_head = 0;
 volatile uint8_t tx_buffer_tail = 0;
+
+uint8_t checksum = 0;  //sum all bytes between newlines.
 
 
 #ifdef ENABLE_XONXOFF
@@ -76,7 +79,8 @@ void serial_init()
 }
 
 
-void serial_write(uint8_t data) {
+
+void serial_sendchar(uint8_t data) {
   // Calculate next head
   uint8_t next_head = tx_buffer_head + 1;
   if (next_head == TX_BUFFER_SIZE) { next_head = 0; }
@@ -85,7 +89,6 @@ void serial_write(uint8_t data) {
   while (next_head == tx_buffer_tail) { 
     if (SYS_EXEC & EXEC_RESET) { return; } // Only check for abort to avoid an endless loop.
   }
-
   // Store data and advance head
   tx_buffer[tx_buffer_head] = data;
   tx_buffer_head = next_head;
@@ -93,6 +96,19 @@ void serial_write(uint8_t data) {
   // Enable Data Register Empty Interrupt to make sure tx-streaming is running
   UCSR0B |=  (1 << UDRIE0); 
 }
+
+void serial_write(uint8_t data) {
+  if (data == '\n') {
+    serial_sendchar(checksum);
+    checksum = 0;
+  }
+  else { 
+    checksum+=data;
+  }
+  serial_sendchar(data);
+
+}
+
 
 
 // Data Register Empty Interrupt handler
@@ -157,11 +173,13 @@ ISR(SERIAL_RX)
   // Pick off runtime command characters directly from the serial stream. These characters are
   // not passed into the buffer, but these set system state flag bits for runtime execution.
   switch (data) {
-    case CMD_STATUS_REPORT: SYS_EXEC |= EXEC_STATUS_REPORT; break; // Set as true
-    case CMD_LIMIT_REPORT:  SYS_EXEC |= EXEC_LIMIT_REPORT; break; // Set as true
-    case CMD_CYCLE_START:   SYS_EXEC |= EXEC_CYCLE_START; break; // Set as true
-    case CMD_FEED_HOLD:     SYS_EXEC |= EXEC_FEED_HOLD; break; // Set as true
-    case CMD_RESET:         mc_reset(); break; // Call motion control reset routine.
+    case CMD_COUNTER_REPORT: request_report(REQUEST_COUNTER_REPORT,0); break; 
+    case CMD_VOLTAGE_REPORT: request_report(REQUEST_VOLTAGE_REPORT,0); break; 
+    case CMD_STATUS_REPORT: request_report(REQUEST_STATUS_REPORT,0); break;
+    case CMD_LIMIT_REPORT: request_report(REQUEST_LIMIT_REPORT,0); break; 
+    case CMD_CYCLE_START: SYS_EXEC |= EXEC_CYCLE_START; break; // Set as true
+    case CMD_FEED_HOLD:  SYS_EXEC |= EXEC_FEED_HOLD; break; // Set as true
+    case CMD_RESET:     mc_reset(); break; // Call motion control reset routine.
     default: // Write character to buffer    
       next_head = rx_buffer_head + 1;
       if (next_head == RX_BUFFER_SIZE) { next_head = 0; }

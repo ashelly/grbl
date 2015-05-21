@@ -48,6 +48,11 @@ void simulate_write_interrupt(){
 void simulate_read_interrupt(){
   uint8_t char_in = platform_poll_stdin();
   if (char_in) {
+    //ESTOP toggle for testing
+	 if (char_in == '`') { 
+     ESTOP_PIN^=ESTOP_MASK;
+     return;
+	 }
 	 UDR0 = char_in;
 	 //EOF or CTRL-F to exit
 	 if (UDR0 == EOF || UDR0 == 0xFF || UDR0 == 0x06 ) {

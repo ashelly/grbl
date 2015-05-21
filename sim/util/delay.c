@@ -22,6 +22,13 @@
 
 // TODO: the simulation time should reflect when grbl dwells
 // Maybe this becomes a no-issue when dwell is executed in a buffered block
-void _delay_ms(int i) {}
 
-void _delay_us(int i) {}
+#include "platform.h"
+
+void _delay_ms(int i) {
+  platform_sleep(i*1000);
+}
+
+void _delay_us(int i) {
+  platform_sleep(i);
+}

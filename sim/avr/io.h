@@ -68,7 +68,6 @@ typedef struct io_sim {
   uint16_t prescaler; //continuously running
   uint8_t sreg;
 
-				  
 } io_sim_t;
 volatile extern io_sim_t io;
 
@@ -168,8 +167,10 @@ typedef struct io_sim_monitor {
 #define OCR0A io.ocra[0]
 #define OCR1A io.ocra[1]
 #define OCR2A io.ocra[2]
-  //There are more..
 
+#define OCR0B io.ocrb[0]
+#define OCR1B io.ocrb[1]
+#define OCR2B io.ocrb[2]
 
 #define TCNT0  io.tcnt[0]
 #define TCNT1  io.tcnt[1]
@@ -182,6 +183,10 @@ typedef struct io_sim_monitor {
 #define TCCR2A io.tccra[2]
 #define TCCR2B io.tccrb[2]
 
+#define TIFR0  io.tifr[0]
+#define TIFR1  io.tifr[1]
+#define TIFR2  io.tifr[2]
+
 #define CS00 0
 #define CS01 1
 #define CS12 2
@@ -193,7 +198,14 @@ typedef struct io_sim_monitor {
 #define WGM12 3
 #define WGM11 1
 #define WGM10 0
+
+#define WGM22 3
 #define WGM21 1
+#define WGM20 0
+
+#define TOV0 SIM_TOV
+#define TOV1 SIM_TOV
+#define TOV2 SIM_TOV
 
 #define COM1A1 7
 #define COM1A0 6

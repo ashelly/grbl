@@ -36,6 +36,7 @@
 #include "spindle_control.h"
 #include "stepper.h"
 #include "counters.h"
+#include "probe.h"
 
 
 // Handles the primary confirmation protocol response for streaming interfaces and human-feedback.
@@ -50,7 +51,13 @@ void report_status_message(uint8_t status_code)
 {
   if (status_code == 0) { // STATUS_OK
     printPgmString(PSTR("ok\r\n"));
-  } else {
+  } else if (status_code & STATUS_QUIET_OK) {
+    // protocol can return a 'QUIET_OK' status meaning don't print OK, print something else instead
+    if (0!= (status_code&=~STATUS_QUIET_OK)) {
+      request_report(status_code,0);
+    }
+  }
+  else {
     printPgmString(PSTR("error: "));
     switch(status_code) {          
       case STATUS_EXPECTED_COMMAND_LETTER:
@@ -97,15 +104,19 @@ void report_alarm_message(int8_t alarm_code)
 {
   printPgmString(PSTR("ALARM: "));
   switch (alarm_code) {
-    case ALARM_LIMIT_ERROR: 
+    case ALARM_LIMIT_ERROR:
     printPgmString(PSTR("Hard/soft limit")); break;
-    case ALARM_ABORT_CYCLE: 
+    case ALARM_ABORT_CYCLE:
     printPgmString(PSTR("Abort during cycle")); break;
     case ALARM_PROBE_FAIL:
     printPgmString(PSTR("Probe fail")); break;
   }
   printPgmString(PSTR("\r\n"));
   delay_ms(500); // Force delay to ensure message clears serial write buffer.
+}
+
+void report_probe_fail(){
+   printPgmString(PSTR("WARNING: Probe fail\r\n"));
 }
 
 // Prints feedback messages. This serves as a centralized method to provide additional
@@ -127,7 +138,7 @@ void report_feedback_message(uint8_t message_code)
     case MESSAGE_ENABLED:
     printPgmString(PSTR("Enabled")); break;
     case MESSAGE_DISABLED:
-    printPgmString(PSTR("Disabled")); break; 
+    printPgmString(PSTR("Disabled")); break;
   }
   printPgmString(PSTR("]\r\n"));
 }
@@ -149,7 +160,9 @@ void report_grbl_help() {
                       "$Nx=line (save startup block)\r\n"
                       "$C (check gcode mode)\r\n"
                       "$X (kill alarm lock)\r\n"
-                      "$H (run homing cycle)\r\n"
+                      "$H<x=single axis> (run homing cycle)\r\n"
+                      "$E<x=clear axis> (report encoders)\r\n"
+                      "$Hx=axis (run homing cycle)\r\n"
                       "~ (cycle start)\r\n"
                       "! (feed hold)\r\n"
                       "? (current status)\r\n"
@@ -172,15 +185,15 @@ void report_grbl_settings() {
   printPgmString(PSTR(" (x accel, mm/sec^2)\r\n$9=")); printFloat_SettingValue(settings.acceleration[Y_AXIS]/(60*60)); // Convert from mm/min^2 for human readability
   printPgmString(PSTR(" (y accel, mm/sec^2)\r\n$10=")); printFloat_SettingValue(settings.acceleration[Z_AXIS]/(60*60)); // Convert from mm/min^2 for human readability
   printPgmString(PSTR(" (z accel, mm/sec^2)\r\n$11=")); printFloat_SettingValue(settings.acceleration[C_AXIS]/(60*60)); // Convert from mm/min^2 for human readability
-  printPgmString(PSTR(" (c accel, mm/sec^2)\r\n$12=")); printFloat_SettingValue(-settings.max_travel[X_AXIS]); // Grbl internally store this as negative.
-  printPgmString(PSTR(" (x max travel, mm)\r\n$13=")); printFloat_SettingValue(-settings.max_travel[Y_AXIS]); // Grbl internally store this as negative.
-  printPgmString(PSTR(" (y max travel, mm)\r\n$14=")); printFloat_SettingValue(-settings.max_travel[Z_AXIS]); // Grbl internally store this as negative.
-  printPgmString(PSTR(" (z max travel, mm)\r\n$15=")); printFloat_SettingValue(-settings.max_travel[C_AXIS]); // Grbl internally store this as negative.
+  printPgmString(PSTR(" (c accel, mm/sec^2)\r\n$12=")); printFloat_SettingValue(settings.max_travel[X_AXIS]); // Grbl internally store this as negative.
+  printPgmString(PSTR(" (x max travel, mm)\r\n$13=")); printFloat_SettingValue(settings.max_travel[Y_AXIS]); // Grbl internally store this as negative.
+  printPgmString(PSTR(" (y max travel, mm)\r\n$14=")); printFloat_SettingValue(settings.max_travel[Z_AXIS]); // Grbl internally store this as negative.
+  printPgmString(PSTR(" (z max travel, mm)\r\n$15=")); printFloat_SettingValue(settings.max_travel[C_AXIS]); // Grbl internally store this as negative.
   printPgmString(PSTR(" (c max travel, mm)\r\n$16=")); print_uint8_base10(settings.pulse_microseconds);
-  printPgmString(PSTR(" (step pulse, usec)\r\n$17=")); print_uint8_base10(settings.step_invert_mask); 
-  printPgmString(PSTR(" (step port invert mask:")); print_uint8_base2(settings.step_invert_mask);  
-  printPgmString(PSTR(")\r\n$18=")); print_uint8_base10(settings.dir_invert_mask); 
-  printPgmString(PSTR(" (dir port invert mask:")); print_uint8_base2(settings.dir_invert_mask);  
+  printPgmString(PSTR(" (step pulse, usec)\r\n$17=")); print_uint8_base10(settings.step_invert_mask);
+  printPgmString(PSTR(" (step port invert mask:")); print_uint8_base2(settings.step_invert_mask);
+  printPgmString(PSTR(")\r\n$18=")); print_uint8_base10(settings.dir_invert_mask);
+  printPgmString(PSTR(" (dir port invert mask:")); print_uint8_base2(settings.dir_invert_mask);
   printPgmString(PSTR(")\r\n$19=")); print_uint8_base10(settings.stepper_idle_lock_time);
   printPgmString(PSTR(" (step idle delay, msec)\r\n$20=")); printFloat_SettingValue(settings.junction_deviation);
   printPgmString(PSTR(" (junction deviation, mm)\r\n$21=")); printFloat_SettingValue(settings.arc_tolerance);
@@ -192,16 +205,19 @@ void report_grbl_settings() {
   printPgmString(PSTR(" (soft limits, bool)\r\n$27=")); print_uint8_base10(bit_istrue(settings.flags,BITFLAG_HARD_LIMIT_ENABLE));
   printPgmString(PSTR(" (hard limits, bool)\r\n$28=")); print_uint8_base10(bit_istrue(settings.flags,BITFLAG_HOMING_ENABLE));
   printPgmString(PSTR(" (homing cycle, bool)\r\n$29=")); print_uint8_base10(settings.homing_dir_mask);
-  printPgmString(PSTR(" (homing dir invert mask:")); print_uint8_base2(settings.homing_dir_mask);  
+  printPgmString(PSTR(" (homing dir invert mask:")); print_uint8_base2(settings.homing_dir_mask);
   printPgmString(PSTR(")\r\n$30=")); printFloat_SettingValue(settings.homing_feed_rate);
-  printPgmString(PSTR(" (homing feed, mm/min)\r\n$31=")); printFloat_SettingValue(settings.homing_seek_rate);
-  printPgmString(PSTR(" (homing seek, mm/min)\r\n$32=")); printInteger(settings.homing_debounce_delay);
-  printPgmString(PSTR(" (homing debounce, msec)\r\n$33=")); printFloat_SettingValue(settings.homing_pulloff);
+  printPgmString(PSTR(" (homing feed, mm/min)\r\n$31=")); printFloat_SettingValue(settings.homing_seek_rate[X_AXIS]);
+  printPgmString(PSTR(" (homing seek x, mm/min)\r\n$32=")); printFloat_SettingValue(settings.homing_seek_rate[Y_AXIS]);
+  printPgmString(PSTR(" (homing seek y, mm/min)\r\n$33=")); printFloat_SettingValue(settings.homing_seek_rate[Z_AXIS]);
+  printPgmString(PSTR(" (homing seek z, mm/min)\r\n$34=")); printFloat_SettingValue(settings.homing_seek_rate[C_AXIS]);
+  printPgmString(PSTR(" (homing seek c, mm/min)\r\n$35=")); printInteger(settings.homing_debounce_delay);
+  printPgmString(PSTR(" (homing debounce, msec)\r\n$36=")); printFloat_SettingValue(settings.homing_pulloff);
   printPgmString(PSTR(" (homing pull-off, mm)"));
 #ifdef KEYME_BOARD
-  printPgmString(PSTR("\r\n$34=")); print_uint8_base10(settings.microsteps);  //TODO: unpack for display
+  printPgmString(PSTR("\r\n$37=")); print_uint8_base10(settings.microsteps);  //TODO: unpack for display
   printPgmString(PSTR(" (microsteps : ")); print_uint8_base2(settings.microsteps);
-  printPgmString(PSTR(")\r\n$35=")); print_uint8_base10(settings.decay_mode);
+  printPgmString(PSTR(")\r\n$38=")); print_uint8_base10(settings.decay_mode);
   printPgmString(PSTR(" (decay mode, (0..3))"));
 #endif
   printPgmString(PSTR("\r\n"));
@@ -209,20 +225,25 @@ void report_grbl_settings() {
 
 
 // Prints current probe parameters. Upon a probe command, these parameters are updated upon a
-// successful probe or upon a failed probe with the G38.3 without errors command (if supported). 
+// successful probe or upon a failed probe with the G38.3 without errors command (if supported).
 // These values are retained until Grbl is power-cycled, whereby they will be re-zeroed.
-void report_probe_parameters()
+void report_probe_parameters(uint8_t error)
 {
   uint8_t i;
   float print_position[N_AXIS];
- 
+
   // Report in terms of machine position.
-  printPgmString(PSTR("[PRB:")); 
-  for (i=0; i< N_AXIS; i++) {
-    print_position[i] = sys.probe_position[i]/settings.steps_per_mm[i];
-    printFloat_CoordValue(print_position[i]);
-    if (i < (N_AXIS-1)) { printPgmString(PSTR(",")); }
-  }  
+  printPgmString(PSTR("[PRB:"));
+  if (!error) {
+    for (i=0; i< N_AXIS; i++) {
+      print_position[i] = sys.probe_position[i]/settings.steps_per_mm[i];
+      printFloat_CoordValue(print_position[i]);
+      if (i < (N_AXIS-1)) { printPgmString(PSTR(",")); }
+    }
+  }
+  else {
+    printPgmString(PSTR("NOT FOUND"));
+  }
   printPgmString(PSTR("]\r\n"));
 }
 
@@ -232,18 +253,18 @@ void report_ngc_parameters()
 {
   float coord_data[N_AXIS];
   uint8_t coord_select, i;
-  for (coord_select = 0; coord_select <= SETTING_INDEX_NCOORD; coord_select++) { 
-    if (!(settings_read_coord_data(coord_select,coord_data))) { 
-      report_status_message(STATUS_SETTING_READ_FAIL); 
+  for (coord_select = 0; coord_select <= SETTING_INDEX_NCOORD; coord_select++) {
+    if (!(settings_read_coord_data(coord_select,coord_data))) {
+      report_status_message(STATUS_SETTING_READ_FAIL);
       return;
-    } 
+    }
     printPgmString(PSTR("[G"));
     switch (coord_select) {
       case 6: printPgmString(PSTR("28")); break;
       case 7: printPgmString(PSTR("30")); break;
       default: print_uint8_base10(coord_select+54); break; // G54-G59
-    }  
-    printPgmString(PSTR(":"));         
+    }
+    printPgmString(PSTR(":"));
     for (i=0; i<N_AXIS; i++) {
       printFloat_CoordValue(coord_data[i]);
       if (i < (N_AXIS-1)) { printPgmString(PSTR(",")); }
@@ -259,7 +280,7 @@ void report_ngc_parameters()
   printPgmString(PSTR("[TLO:")); // Print tool length offset value
   printFloat_CoordValue(gc_state.tool_length_offset);
   printPgmString(PSTR("]\r\n"));
-  report_probe_parameters(); // Print probe parameters. Not persistent in memory.
+  report_probe_parameters(0); // Print probe parameters. Not persistent in memory.
 }
 
 
@@ -342,34 +363,48 @@ void report_build_info(char *line)
 }
 
 #ifdef KEYME_BOARD
-//Prints sys info line: Estop and voltage
-void report_sys_info()
-{
-  uint8_t volts = MVOLT_PIN&MVOLT_MASK;
-  //prints system info: 
-  //estop, & motor voltage indicators  
-  printPgmString(PSTR("{e:"));
-  print_uint8_base10((ESTOP_PIN>>ESTOP_BIT)&1);
-  printPgmString(PSTR(", v:"));
-  volts = (volts>>1|volts<<3); //shuffle bits to get xyzc order
-  print_uint8_base2(volts&MVOLT_MASK);
-  printPgmString(PSTR("}\n\r"));
-}
-
 //Prints encoder line: Counts and encoder pins
 void report_counters()
 {
+  uint8_t idx;
   uint8_t pinval = FDBK_PIN&FDBK_MASK;
-  printPgmString(PSTR("{z: "));
-  printInteger(counters_get_count(Z_AXIS));
-  printPgmString(PSTR(" (:"));
-  print_uint8_base2((pinval>>Z_ENC_IDX_BIT)&7); //3 bits
-  printPgmString(PSTR("), c(:"));
-  printInteger(counters_get_count(C_AXIS));
-  printPgmString(PSTR(" (:"));
-  print_uint8_base2((pinval>>MAG_SENSE_BIT)&1); //1 bit
-  printPgmString(PSTR("}\n\r"));
+  printPgmString(PSTR("{"));
+  for (idx=0 ;idx<N_AXIS-1;idx++) {
+    printInteger(counters_get_count(idx));
+    printPgmString(PSTR(","));
+  }
+  printInteger(counters_get_count(idx));
+  printPgmString(PSTR(":0,0,")); //todo replace with xy encoder state if installed
+  print_uint8_base2((pinval>>Z_ENC_IDX_BIT)&7); //3 bits    
+  printPgmString(PSTR(","));
+  printInteger(~(pinval>>ALIGN_SENSE_BIT)&1); //1 bit sensor
+  printPgmString(PSTR("}\r\n"));
+}
 
+/* extern uint64_t st_shutdown_start; */
+/* void report_stepper() { */
+/*   printInteger((unsigned long)(masterclock)); */
+/*   printPgmString(PSTR(",")); */
+/*   printInteger((unsigned long)(st_shutdown_start)); */
+/*   printPgmString(PSTR(",")); */
+/*   printInteger((unsigned long)(masterclock - st_shutdown_start)); */
+/*   printPgmString(PSTR("\n")); */
+/* } */
+
+//Prints voltage data: motor volts.
+void report_voltage()
+{
+  uint8_t volts = MVOLT_PIN&MVOLT_MASK;
+  printPgmString(PSTR("|"));
+  printInteger((volts>>X_MVOLT_BIT)&1);
+  printPgmString(PSTR(","));
+  printInteger((volts>>Y_MVOLT_BIT)&1);
+  printPgmString(PSTR(","));
+  printInteger((volts>>Z_MVOLT_BIT)&1);
+  printPgmString(PSTR(","));
+  printInteger((volts>>C_MVOLT_BIT)&1);
+  printPgmString(PSTR("|"));
+  printPgmString(PSTR("\r\n"));
 }
 #endif
 
@@ -378,29 +413,26 @@ void report_counters()
  // specific needs, but the desired real-time data report must be as short as possible. This is
  // requires as it minimizes the computational overhead and allows grbl to keep running smoothly, 
  // especially during g-code programs with fast, short line segments and high frequency reports (5-20Hz).
-void report_realtime_status()
+
+
+
+uint8_t report_realtime_status()
 {
   // **Under construction** Bare-bones status report. Provides real-time machine position relative to 
   // the system power on location (0,0,0) and work coordinate position (G54 and G92 applied). Eventually
   // to be added are distance to go on block, processed block id, and feed rate. Also a settings bitmask
   // for a user to select the desired real-time data.
-  uint8_t i;
   int32_t current_position[N_AXIS]; // Copy current state of the system position variable
+  static linenumber_t ln=0;
+  uint8_t i;
   memcpy(current_position,sys.position,sizeof(sys.position));
 
-#ifdef USE_LINE_NUMBERS
-  int32_t ln = 0;
-#if USE_LINE_NUMBERS != PERSIST_LINE_NUMBERS
-  plan_block_t * pb = plan_get_current_block();
-  if(pb != NULL) {
-    ln = pb->line_number;
-  } 
-#else
-  if (sys.state==STATE_CYCLE) {
-    ln = sys.last_line_number;
-  }
-#endif
-#endif
+  /* For linenumber debuggering
+    extern uint8_t ln_head();
+    printInteger(linenumber_next());
+    printPgmString(":");
+    printInteger(ln_head());
+  */
   float print_position[N_AXIS];
  
   // Report current machine state
@@ -415,33 +447,42 @@ void report_realtime_status()
   }
  
   // Report machine position
-  printPgmString(PSTR(",Pos:")); 
-  for (i=0; i< N_AXIS; i++) {
+  printPgmString(PSTR(":"));
+  for (i=0; i< N_AXIS-1; i++) {
+    //switch to work position
     print_position[i] = current_position[i]/settings.steps_per_mm[i];
+    print_position[i] -= gc_state.coord_system[i]+gc_state.coord_offset[i];
     printFloat_CoordValue(print_position[i]);
     printPgmString(PSTR(","));
   }
-  
+  print_position[i] = current_position[i]/settings.steps_per_mm[i];
+  print_position[i] -= gc_state.coord_system[i]+gc_state.coord_offset[i];
+  printFloat_CoordValue(print_position[i]);
+
   // Report work position
-  printPgmString(PSTR("Cts:")); 
-  for (i=0; i< N_AXIS; i++) {
+  printPgmString(PSTR(":")); 
+  for (i=0;i< N_AXIS-1; i++) {
     printInteger(current_position[i]);
-    if (i < (N_AXIS-1)) { printPgmString(PSTR(",")); }
+    printPgmString(PSTR(",")); 
   }
+  printInteger(current_position[i]);
     
-  #ifdef USE_LINE_NUMBERS
   // Report current line number
-  printPgmString(PSTR(",Ln:")); 
+  if (sys.eol_flag) {
+    ln = linenumber_get()&~LINENUMBER_EMPTY_BLOCK;
+    if ((linenumber_peek()&LINENUMBER_EMPTY_BLOCK) == 0) {
+      sys.eol_flag = 0;
+    }
+  }
+
+
+  printPgmString(PSTR(":")); 
   printInteger(ln);
-  #endif
     
-  #ifdef REPORT_REALTIME_RATE
-  // Report realtime rate 
-  printPgmString(PSTR(",F:")); 
-  printFloat_RateValue(st_get_realtime_rate());
-  #endif  
-  
   printPgmString(PSTR(">\r\n"));
+
+  return sys.eol_flag; //returns True if more work to do
+
 }
 
 void report_limit_pins()
@@ -450,8 +491,9 @@ void report_limit_pins()
   if (bit_istrue(settings.flags,BITFLAG_INVERT_LIMIT_PINS)) {
 	 limit_state^=LIMIT_MASK;
   }  
-  printPgmString(PSTR("("));
+  printPgmString(PSTR("/"));
+  printInteger((ESTOP_PIN>>ESTOP_BIT)&1);
+  printInteger(probe_get_state()?1:0);
   print_uint8_base2(limit_state);
-  printPgmString(PSTR(")\n\r"));
-
+  printPgmString(PSTR("/\r\n"));
 }

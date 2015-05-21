@@ -29,10 +29,6 @@
 #include "probe.h"
 #include "report.h"
 
-// NOTE: Max line number is defined by the g-code standard to be 99999. It seems to be an
-// arbitrary value, and some GUIs may require more. So we increased it based on a max safe
-// value when converting a float (7.2 digit precision)s to an integer.
-#define MAX_LINE_NUMBER 9999999 
 
 #define AXIS_COMMAND_NONE 0
 #define AXIS_COMMAND_NON_MODAL 1 
@@ -127,6 +123,7 @@ uint8_t gc_execute_line(char *line)
   float value;
   uint8_t int_value = 0;
   uint8_t mantissa = 0; // NOTE: For mantissa values > 255, variable type must be changed to uint16_t.
+  uint8_t retval = STATUS_OK;
 
 
   while (line[char_counter] != 0) { // Loop until no more g-code words in line.
@@ -405,7 +402,7 @@ uint8_t gc_execute_line(char *line)
   // Check for valid line number N value.
   if (bit_istrue(value_words,bit(WORD_N))) {
     // Line number value cannot be less than zero (done) or greater than max line number.
-    if (gc_block.values.n > MAX_LINE_NUMBER) { FAIL(STATUS_GCODE_INVALID_LINE_NUMBER); } // [Exceeds max line number]
+    if (gc_block.values.n > LINENUMBER_MAX) { FAIL(STATUS_GCODE_INVALID_LINE_NUMBER); } // [Exceeds max line number]
   }
   // bit_false(value_words,bit(WORD_N)); // NOTE: Single-meaning value word. Set at end of error-checking.
   
@@ -814,9 +811,11 @@ uint8_t gc_execute_line(char *line)
         case MOTION_MODE_PROBE:
           // [G38 Errors]: Target is same current. No axis words. Cutter compensation is enabled. Feed rate
           //   is undefined. Probe is triggered.
+          //KeyMe: same posiiton will report probe fail when done.
+          //KeyMe: Already triggered will report success
           if (!axis_words) { FAIL(STATUS_GCODE_NO_AXIS_WORDS); } // [No axis words]
-          if (gc_check_same_position(gc_state.position, gc_block.values.xyz)) { FAIL(STATUS_GCODE_INVALID_TARGET); } // [Invalid target]
-          if (probe_get_state()) { FAIL(STATUS_GCODE_PROBE_TRIGGERED); } // [Probe triggered]
+          //XX if (gc_check_same_position(gc_state.position, gc_block.values.xyz)) { FAIL(STATUS_GCODE_INVALID_TARGET); } // [Invalid target]
+          //XX if (probe_get_state()) { FAIL(STATUS_GCODE_PROBE_TRIGGERED); } // [Probe triggered]
           break;
       } 
     }
@@ -873,7 +872,11 @@ uint8_t gc_execute_line(char *line)
   // [9. Enable/disable feed rate or spindle overrides ]: NOT SUPPORTED
 
   // [10. Dwell ]:
-  if (gc_block.non_modal_command == NON_MODAL_DWELL) { mc_dwell(gc_block.values.p); }
+  if (gc_block.non_modal_command == NON_MODAL_DWELL) { 
+    linenumber_insert(gc_block.values.n); 
+    mc_dwell(gc_block.values.p); 
+    request_eol_report(); //pop the number we just put in 
+  }
   
   // [11. Set active plane ]:
   gc_state.modal.plane_select = gc_block.modal.plane_select;  
@@ -926,17 +929,9 @@ uint8_t gc_execute_line(char *line)
       // Move to intermediate position before going home. Obeys current coordinate system and offsets 
       // and absolute and incremental modes.
       if (axis_command) {
-        #ifdef USE_LINE_NUMBERS
         mc_line(gc_block.values.xyz, -1.0, false, gc_block.values.n);
-        #else
-        mc_line(gc_block.values.xyz, -1.0, false);
-        #endif
       }
-      #ifdef USE_LINE_NUMBERS
       mc_line(parameter_data, -1.0, false, gc_block.values.n); 
-      #else
-      mc_line(parameter_data, -1.0, false); 
-      #endif
       memcpy(gc_state.position, parameter_data, sizeof(parameter_data));
       break;
     case NON_MODAL_SET_HOME_0: 
@@ -962,34 +957,19 @@ uint8_t gc_execute_line(char *line)
     if (axis_command == AXIS_COMMAND_MOTION_MODE) {
       switch (gc_state.modal.motion) {
         case MOTION_MODE_SEEK:
-          #ifdef USE_LINE_NUMBERS
           mc_line(gc_block.values.xyz, -1.0, false, gc_block.values.n);
-          #else
-          mc_line(gc_block.values.xyz, -1.0, false);
-          #endif
           break;
         case MOTION_MODE_LINEAR:
-          #ifdef USE_LINE_NUMBERS
           mc_line(gc_block.values.xyz, gc_state.feed_rate, gc_state.modal.feed_rate, gc_block.values.n);
-          #else
-          mc_line(gc_block.values.xyz, gc_state.feed_rate, gc_state.modal.feed_rate);
-          #endif
           break;
         case MOTION_MODE_CW_ARC: case MOTION_MODE_CCW_ARC:
-          #ifdef USE_LINE_NUMBERS
           mc_arc(gc_state.position, gc_block.values.xyz, gc_block.values.ijk, gc_block.values.r, 
             gc_state.feed_rate, gc_state.modal.feed_rate, axis_0, axis_1, axis_linear, gc_block.values.n);  
-          #else
-          mc_arc(gc_state.position, gc_block.values.xyz, gc_block.values.ijk, gc_block.values.r, 
-            gc_state.feed_rate, gc_state.modal.feed_rate, axis_0, axis_1, axis_linear); 
-          #endif
           break;
         case MOTION_MODE_PROBE:
-          #ifdef USE_LINE_NUMBERS
           mc_probe_cycle(gc_block.values.xyz, gc_state.feed_rate, gc_state.modal.feed_rate, gc_block.values.n);
-          #else
-          mc_probe_cycle(gc_block.values.xyz, gc_state.feed_rate, gc_state.modal.feed_rate);
-          #endif
+          retval = STATUS_QUIET_OK;
+          //block.values.xyz is updated inside probe_cycle, so the next line is correct
       }
     
       // As far as the parser is concerned, the position is now == target. In reality the
@@ -1014,7 +994,7 @@ uint8_t gc_execute_line(char *line)
   }
     
   // TBD: % to denote start of program. Sets auto cycle start?
-  return(STATUS_OK);
+  return(STATUS_OK|retval);
 }
         
 

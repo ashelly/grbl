@@ -1,7 +1,13 @@
 #Grbl
 ------------
 
-This branch serves only as a developmental platform for working on new ideas that may eventually be installed into Grbl's edge branch. Please do not use as there is no guarantee this code base is up-to-date or working.
+Differences from  stock grbl:
+  - 4 Axes: XYZC. Z is a gripper, C is a "conveyor", delivering parts to the work space.
+  - reports limits + probe with '^'
+  - has an encoder on channel Z. and a probe on channel C.  Reports the counts with $e.
+  - Per axis homing, and per-axis home seek rates
+  - Reports position, with responsible line number, after every move
+  - Reports position w/ line number after pause.
 
 ------------
 

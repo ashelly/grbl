@@ -29,9 +29,13 @@
 #include "motion_control.h"
 #include "report.h"
 
+#define STATUS_REPORT_RATE_MS 333  //3 Hz
 
 static char line[LINE_BUFFER_SIZE]; // Line to be executed. Zero-terminated.
 
+static uint32_t report_clock=0; //time until next automatic report
+static uint8_t next_report=REQUEST_STATUS_REPORT;
+//static uint8_t is_init=0;
 
 // Directs and executes one line of formatted input from protocol_process. While mostly
 // incoming streaming g-code blocks, this also directs and executes Grbl internal commands,
@@ -53,6 +57,12 @@ static void protocol_execute_line(char *line)
     // Everything else is gcode. Block if in alarm mode.
     report_status_message(STATUS_ALARM_LOCK);
 
+  } else if (line[0] == CMD_LINE_START) {
+    // This is a special start command which is guaranteed to be sequenced after
+    // the previous line - it won't be picked out of the serial stream while 
+    // gc_execute_line is still parsing the previous line.
+    SYS_EXEC |= EXEC_CYCLE_START;
+    report_status_message(STATUS_OK);
   } else {
     // Parse and execute g-code block!
     report_status_message(gc_execute_line(line));
@@ -80,6 +90,7 @@ void protocol_main_loop()
     sys.state = STATE_IDLE; // Set system to ready. Clear all state flags.
     system_execute_startup(line); // Execute startup script.
   }
+  //  is_init = 1;
     
   // ---------------------------------------------------------------------------------  
   // Primary loop! Upon a system abort, this exits back to main() to reset the system. 
@@ -179,6 +190,16 @@ void protocol_execute_runtime()
 {
   uint8_t rt_exec = SYS_EXEC; // Copy to avoid calling volatile multiple times
 
+  uint32_t clock = masterclock;
+  if (clock >= (report_clock +  STATUS_REPORT_RATE_MS) || clock < report_clock) {
+    rt_exec|= EXEC_RUNTIME_REPORT;
+    sysflags.report_rqsts|=next_report;
+    next_report^=(REQUEST_STATUS_REPORT|REQUEST_LIMIT_REPORT); //toggle between these two
+    report_clock = clock;
+  }
+  st_check_disable();
+  
+
   if (rt_exec) { // Enter only if any bit flag is true
     
     // System alarm. Everything has shutdown by something that has gone severely wrong. Report
@@ -219,20 +240,33 @@ void protocol_execute_runtime()
     }
     
     // Execute and serial print status
-    if (rt_exec & EXEC_STATUS_REPORT) { 
-      report_realtime_status();
-      bit_false(SYS_EXEC,EXEC_STATUS_REPORT);
+    if (rt_exec & EXEC_RUNTIME_REPORT) { 
+      uint8_t reports=sysflags.report_rqsts;
+      sysflags.report_rqsts=0;   //TODO: potential race here if isr requests another right after we read it.
+
+      if (reports & REQUEST_STATUS_REPORT) {
+        if (!report_realtime_status()){ //ensure no more lines to report
+          reports &= ~REQUEST_STATUS_REPORT; 
+        }
+      }
+      //elsif forces 1 report per loop max
+      else if (reports & REQUEST_LIMIT_REPORT) {  
+        report_limit_pins();
+        reports &= ~REQUEST_LIMIT_REPORT; 
+      }
+      else if (reports & REQUEST_COUNTER_REPORT) {
+        report_counters();
+        reports &= ~REQUEST_COUNTER_REPORT;
+      }
+      else if (reports & REQUEST_VOLTAGE_REPORT) {
+        report_voltage();
+        reports &= ~REQUEST_VOLTAGE_REPORT;
+      }
+      if (0==(sysflags.report_rqsts|=reports)) { //if all reports done and no new requests, clear report flag
+        bit_false(SYS_EXEC,EXEC_RUNTIME_REPORT);
+      }
     }
-    // Execute and serial print status
-    if (rt_exec & EXEC_LIMIT_REPORT) { 
-      report_limit_pins();
-      bit_false(SYS_EXEC,EXEC_LIMIT_REPORT);
-    }
-    if (rt_exec & EXEC_LIMIT_REPORT) { 
-      report_limit_pins();
-      bit_false(SYS_EXEC,EXEC_LIMIT_REPORT);
-    }
-    
+
     // Execute a feed hold with deceleration, only during cycle.
     if (rt_exec & EXEC_FEED_HOLD) {
       // !!! During a cycle, the segment buffer has just been reloaded and full. So the math involved
@@ -247,7 +281,7 @@ void protocol_execute_runtime()
     }
         
     // Execute a cycle start by starting the stepper interrupt begin executing the blocks in queue.
-	 //ADS blcok while homing.
+	 //ADS block while homing.
     if ((rt_exec & EXEC_CYCLE_START) && !(sys.state & STATE_HOMING)) { 
       if (sys.state == STATE_QUEUED) {
         sys.state = STATE_CYCLE;
@@ -280,6 +314,9 @@ void protocol_execute_runtime()
 
   // Reload step segment buffer
   if (sys.state & (STATE_CYCLE | STATE_HOLD | STATE_HOMING)) { st_prep_buffer(); }  
+
+  // Clear IO Reset bit.
+  IO_RESET_PORT &= (~IO_RESET_MASK);
   
 }  
 

@@ -26,14 +26,13 @@
 
 
 
-#define GRBL_VERSION "0.9e"
-//#define GRBL_VERSION_BUILD "20140531"
+#define GRBL_VERSION "0.9K.2"
 #define GRBL_VERSION_BUILD __DATE__ " " __TIME__ 
 
 
 // Version of the EEPROM data. Will be used to migrate existing data from older versions of Grbl
 // when firmware is upgraded. Always stored in byte 0 of eeprom
-#define SETTINGS_VERSION 71
+#define SETTINGS_VERSION 73
 
 // Define bit flag masks for the boolean settings in settings.flag.
 #define BITFLAG_REPORT_INCHES      bit(0)
@@ -78,8 +77,8 @@ typedef struct {
   float arc_tolerance;
   uint8_t flags;  // Contains default boolean settings
   uint8_t homing_dir_mask;
-  float homing_feed_rate;
-  float homing_seek_rate;
+  float homing_feed_rate; //slow resolve sensor
+  float homing_seek_rate[N_AXIS]; //seek to sensor
   uint16_t homing_debounce_delay;
   float homing_pulloff ;
   uint8_t microsteps; //2 bits per motor
