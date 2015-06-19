@@ -440,12 +440,15 @@ ISR(TIMER1_COMPA_vect)
   if (must_stop) {
     st.step_outbits &= ~(must_stop>>LIMIT_BIT_SHIFT);
     if (!st.step_outbits) {
-      limits.homenext|=1;
+      limits.ishoming=0; //if all axes at correct limit state, homing phase is over
+      request_report(REQUEST_STATUS_REPORT|REQUEST_LIMIT_REPORT,LINENUMBER_EMPTY_BLOCK);
     }
+    //if limits made but not homing or alarmed already: critical alarm.
     if ( !(sys.state & (STATE_ALARM|STATE_HOMING)) && 
          bit_isfalse(SYS_EXEC,EXEC_ALARM)) {
       mc_reset(); // Initiate system kill.
       // Indicate hard limit critical event, print limits
+      sys.alarm |= ALARM_HARD_LIMIT;
       request_report(REQUEST_LIMIT_REPORT,(EXEC_ALARM | EXEC_CRIT_EVENT));
     }
   }
@@ -518,17 +521,14 @@ void st_reset()
 
 
 void keyme_init(){
-#ifdef KEYME_BOARD
   //PORTG0 for drive enable
   ESTOP_DDR  |= (1<<RUN_ENABLE_BIT);    //set enable as outupt
   ESTOP_DDR  &= ~(ESTOP_BIT);           //estop as input
   ESTOP_PORT |= (1<<RUN_ENABLE_BIT);  //allow motors to run
   ESTOP_PORT &= ~(ESTOP_BIT);           //estop input normal-low
 
-
   //Microstepping
   MS_DDR = MS_MASK; //all output
-
 
   MS_PORT = settings.microsteps&MS_MASK;
   //Phase Current Decay. 
@@ -547,7 +547,6 @@ void keyme_init(){
   //Setup IO Reset Port
   IO_RESET_DDR |= IO_RESET_MASK;
   IO_RESET_PORT &= ~IO_RESET_MASK; //don't reset
-#endif
 }
 
 
